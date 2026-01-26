@@ -337,3 +337,40 @@ Typecheck passes (mypy strict mode).
 - Action history with max length provides recent context without unlimited growth
 
 ---
+
+## Jan 26, 2026 - US-023
+
+- src/browser_agent/core/context.py (US-023):
+  - Added compression_interval parameter to __init__ (default 10 steps)
+  - Added _compressed_summary field to store compressed history
+  - should_compress(): Returns True when action count >= compression_interval
+  - compress_task_memory(): Compresses older steps into summary format:
+    - Counts actions by type (CLICK, NAVIGATE, etc.)
+    - Calculates success rate percentage
+    - Keeps 5 most recent steps in detail
+    - Includes current state (URL, task, page title)
+    - Returns formatted summary string
+  - get_compressed_summary(): Returns stored compressed summary
+  - Updated reset() to clear _compressed_summary
+
+- Summary format example:
+  ```
+  Completed 15 actions:
+    Actions: 5 click(s), 3 navigate(s), 2 type(s), 5 wait(s)
+    Success rate: 12/15 (80%)
+
+  Current state:
+    URL: https://example.com
+    Task: Search for products
+    Page: Product Search
+  ```
+
+Typecheck passes (mypy strict mode).
+
+**Learnings for future iterations:**
+- Use isinstance() type narrowing when accessing dict values with union types
+- Task compression keeps recent 5 steps detailed while summarizing older ones
+- Compression reduces token usage while preserving recent context
+- Success rate calculation: (successful / (successful + failed)) * 100
+
+---
