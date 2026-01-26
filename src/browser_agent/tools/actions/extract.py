@@ -3,6 +3,8 @@
 This module provides the extract function for extracting data from the page.
 """
 
+from typing import cast
+
 from playwright.sync_api import Page
 
 from browser_agent.models.result import ActionResult
@@ -29,19 +31,19 @@ def extract(page: Page, target: str) -> ActionResult:
 
         # Handle common extraction targets
         if "title" in target_lower:
-            result = page.title
+            result = cast(str, page.title)
             return ActionResult.success_result(
                 message=f"Page title: {result}",
             )
 
         elif "url" in target_lower or "address" in target_lower:
-            result = page.url
+            result = cast(str, page.url)
             return ActionResult.success_result(
                 message=f"Page URL: {result}",
             )
 
         elif "text" in target_lower or "content" in target_lower:
-            result = page.inner_text("body")[:4000]  # Limit to 4K chars
+            result = cast(str, page.inner_text("body")[:4000])  # Limit to 4K chars
             return ActionResult.success_result(
                 message=f"Page text content (truncated): {result}",
             )
@@ -67,7 +69,7 @@ def extract(page: Page, target: str) -> ActionResult:
 
         else:
             # Generic fallback: return page text
-            result = page.inner_text("body")[:2000]
+            result = cast(str, page.inner_text("body")[:2000])
             return ActionResult.success_result(
                 message=f"Page content (first 2000 chars): {result}",
             )

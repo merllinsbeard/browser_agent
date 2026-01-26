@@ -5,7 +5,7 @@ page state without full DOM dumps.
 """
 
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import yaml  # type: ignore[import-untyped]
 from playwright.sync_api import Page
@@ -67,8 +67,8 @@ def browser_observe(
         A PageSnapshot containing the observed page state.
     """
     # Get basic page info
-    url = page.url
-    title = page.title
+    url = cast(str, page.url)
+    title = cast(str, page.title)
 
     # Get the ARIA snapshot YAML
     aria_yaml = page.locator("body").aria_snapshot()
