@@ -541,8 +541,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 36,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: scripts/run.py with full agent orchestration, scripts/demo.py for demonstration, all features implemented (browser launch, planning, navigation, safety confirmations, stuck detection, completion report). Demo requires OPENROUTER_API_KEY environment variable to run. Run: uv run python scripts/demo.py"
     }
   ]
 }
