@@ -8,6 +8,8 @@
 - Use `str(path)` when passing pathlib.Path to Playwright APIs (they expect str, not Path)
 - Use frozen dataclasses for immutable models (Action, PageSnapshot, ActionResult, InteractiveElement)
 - Action inherits from both str and Enum for JSON serialization compatibility
+- Element registry uses snapshot versioning to prevent stale element references
+- Element refs follow pattern "elem-{index}" for predictable identification
 
 # Ralph Progress Log
 Started: Mon Jan 26 22:00:52 MSK 2026
@@ -66,5 +68,29 @@ Started: Mon Jan 26 22:00:52 MSK 2026
 - Use frozen dataclasses for immutable models (prevents accidental modification)
 - Action inherits from both str and Enum for JSON serialization and string comparison
 - field(default_factory=list) for mutable default arguments in dataclasses
+
+---
+
+## Jan 26, 2026 - US-004
+- Created src/browser_agent/core/registry.py:
+  - StaleElementError: Custom exception with helpful error message
+  - RegistryEntry: Stores element, snapshot_version, selector
+  - ObservationResult: Result of page observation with elements and version
+  - ElementRegistry class:
+    - Assigns unique ref IDs (elem-0, elem-1, etc.)
+    - Tracks snapshot version for validation
+    - register_elements(): Register batch of elements with selectors
+    - get_locator(): Returns Playwright Locator for element ref
+    - get_element(): Returns InteractiveElement for element ref
+    - increment_version(): Clears stale entries, increments version
+    - clear(): Reset registry to initial state
+- Stale element detection: Raises StaleElementError when using old element ref
+- Dynamic selector mapping: Ref IDs map to Playwright locators at runtime
+- Typecheck passes (mypy strict mode)
+
+**Learnings for future iterations:**
+- Element registry uses snapshot versioning to prevent acting on stale elements
+- Element refs follow pattern "elem-{index}" for predictable identification
+- Custom exceptions with detailed context help debugging (StaleElementError)
 
 ---
