@@ -22,7 +22,7 @@ from browser_agent.tools.actions.type import type_
 
 
 @pytest.fixture
-def mock_page():
+def mock_page() -> MagicMock:
     """Create a mock Playwright Page object."""
     page = MagicMock()
     page.url = "https://example.com"
@@ -35,14 +35,14 @@ def mock_page():
 
 
 @pytest.fixture
-def mock_registry():
+def mock_registry() -> MagicMock:
     """Create a mock ElementRegistry."""
     registry = MagicMock(spec=ElementRegistry)
     return registry
 
 
 @pytest.fixture
-def mock_locator():
+def mock_locator() -> MagicMock:
     """Create a mock Playwright Locator."""
     locator = MagicMock()
     locator.click = MagicMock()
@@ -69,6 +69,7 @@ def test_click_stale_element(mock_page: MagicMock, mock_registry: MagicMock) -> 
     result = click(mock_page, mock_registry, "elem-0")
 
     assert result.success is False
+    assert result.error is not None
     assert "stale" in result.error.lower()
 
 
@@ -80,6 +81,7 @@ def test_click_timeout(mock_page: MagicMock, mock_registry: MagicMock, mock_loca
     result = click(mock_page, mock_registry, "elem-0")
 
     assert result.success is False
+    assert result.error is not None
     assert "timeout" in result.error.lower()
 
 
@@ -193,3 +195,160 @@ def test_done_success() -> None:
 
     assert result.success is True
     assert "completed" in result.message.lower()
+
+
+def test_extract_text(mock_page: MagicMock) -> None:
+    """Test extract action for text content."""
+    mock_page.inner_text.return_value = "Sample page content"
+
+    result = extract(mock_page, "text")
+
+    assert result.success is True
+    assert "Sample page content" in result.message
+    mock_page.inner_text.assert_called_once_with("body")
+
+
+def test_extract_content(mock_page: MagicMock) -> None:
+    """Test extract action for content (alias for text)."""
+    mock_page.inner_text.return_value = "Main content here"
+
+    result = extract(mock_page, "content")
+
+    assert result.success is True
+    assert "Main content here" in result.message
+
+
+def test_extract_links(mock_page: MagicMock) -> None:
+    """Test extract action for links."""
+    mock_link1 = MagicMock()
+    mock_link1.inner_text.return_value = "Home"
+    mock_link2 = MagicMock()
+    mock_link2.inner_text.return_value = "About"
+    mock_links = [mock_link1, mock_link2]
+
+    mock_locator = MagicMock()
+    mock_locator.all.return_value = mock_links
+    mock_page.locator.return_value = mock_locator
+
+    result = extract(mock_page, "links")
+
+    assert result.success is True
+    assert "2" in result.message
+    assert "Home" in result.message
+
+
+def test_extract_anchors(mock_page: MagicMock) -> None:
+    """Test extract action for anchors (alias for links)."""
+    mock_link = MagicMock()
+    mock_link.inner_text.return_value = "Contact"
+    mock_links = [mock_link]
+
+    mock_locator = MagicMock()
+    mock_locator.all.return_value = mock_links
+    mock_page.locator.return_value = mock_locator
+
+    result = extract(mock_page, "anchor")
+
+    assert result.success is True
+    assert "Contact" in result.message
+
+
+def test_extract_inputs(mock_page: MagicMock) -> None:
+    """Test extract action for form inputs."""
+    mock_input1 = MagicMock()
+    mock_input1.get_attribute.side_effect = lambda attr: {"type": "text", "name": "email", "placeholder": "Enter email"}.get(attr)
+    mock_input2 = MagicMock()
+    mock_input2.get_attribute.side_effect = lambda attr: {"type": "password", "name": "", "placeholder": ""}.get(attr)
+    mock_inputs = [mock_input1, mock_input2]
+
+    mock_locator = MagicMock()
+    mock_locator.all.return_value = mock_inputs
+    mock_page.locator.return_value = mock_locator
+
+    result = extract(mock_page, "inputs")
+
+    assert result.success is True
+    assert "2" in result.message
+    assert "email" in result.message
+
+
+def test_extract_form(mock_page: MagicMock) -> None:
+    """Test extract action for form (alias for inputs)."""
+    mock_input = MagicMock()
+    mock_input.get_attribute.side_effect = lambda attr: {"type": "submit", "name": "submit", "placeholder": ""}.get(attr)
+    mock_inputs = [mock_input]
+
+    mock_locator = MagicMock()
+    mock_locator.all.return_value = mock_inputs
+    mock_page.locator.return_value = mock_locator
+
+    result = extract(mock_page, "form")
+
+    assert result.success is True
+    assert "submit" in result.message
+
+
+def test_extract_generic_fallback(mock_page: MagicMock) -> None:
+    """Test extract action with generic fallback."""
+    mock_page.inner_text.return_value = "Generic page content"
+
+    result = extract(mock_page, "something unknown")
+
+    assert result.success is True
+    assert "Generic page content" in result.message
+    mock_page.inner_text.assert_called_once_with("body")
+
+
+def test_extract_exception(mock_page: MagicMock) -> None:
+    """Test extract action with exception."""
+    mock_page.inner_text.side_effect = Exception("Page error")
+
+    result = extract(mock_page, "text")
+
+    assert result.success is False
+    assert result.error is not None
+    assert "Failed to extract" in result.message
+
+
+def test_extract_address_alias(mock_page: MagicMock) -> None:
+    """Test extract action for address (alias for URL)."""
+    mock_page.url = "https://example.com/page"
+
+    result = extract(mock_page, "address")
+
+    assert result.success is True
+    assert "https://example.com/page" in result.message
+
+
+def test_type_timeout(mock_page: MagicMock, mock_registry: MagicMock, mock_locator: MagicMock) -> None:
+    """Test type action with timeout error."""
+    mock_registry.get_locator.return_value = mock_locator
+    mock_locator.fill.side_effect = PlaywrightTimeoutError("Timeout")
+
+    result = type_(mock_page, mock_registry, "elem-0", "test text")
+
+    assert result.success is False
+    assert result.error is not None
+    assert "timeout" in result.error.lower()
+
+
+def test_type_generic_exception(mock_page: MagicMock, mock_registry: MagicMock, mock_locator: MagicMock) -> None:
+    """Test type action with generic exception."""
+    mock_registry.get_locator.return_value = mock_locator
+    mock_locator.fill.side_effect = RuntimeError("Unexpected error")
+
+    result = type_(mock_page, mock_registry, "elem-0", "test text")
+
+    assert result.success is False
+    assert result.error is not None
+
+
+def test_type_stale_element(mock_page: MagicMock, mock_registry: MagicMock) -> None:
+    """Test type action with stale element."""
+    mock_registry.get_locator.side_effect = StaleElementError("elem-0", 1, 2)
+
+    result = type_(mock_page, mock_registry, "elem-0", "test text")
+
+    assert result.success is False
+    assert result.error is not None
+    assert "stale" in result.error.lower()
