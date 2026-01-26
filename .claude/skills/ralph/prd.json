@@ -369,8 +369,8 @@
         "Typecheck passes"
       ],
       "priority": 25,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: hybrid_observe() with automatic capture_screenshot() call, screenshot_path passed to PageSnapshot, needs_vision_fallback() helper (threshold <10 elements), updated tools/__init__.py to export hybrid_observe and needs_vision_fallback"
     },
     {
       "id": "US-026",

@@ -407,3 +407,26 @@ Typecheck passes (mypy strict mode).
 - get_context_summary() enhanced with all relevant metrics for monitoring
 
 ---
+
+## Jan 26, 2026 - US-025
+
+- src/browser_agent/tools/hybrid_observe.py (US-025):
+  - hybrid_observe(): Combines ARIA-based observation with screenshot capture
+    - Captures screenshot first (before page modifications)
+    - Calls browser_observe() with screenshot_path parameter
+    - Returns PageSnapshot with screenshot_path included for visual analysis
+  - needs_vision_fallback(): Returns True if element count < threshold (default 10)
+  - Screenshot captured on each observe() via capture_screenshot()
+  - Screenshot path included in PageSnapshot for fallback analysis
+
+- Updated src/browser_agent/tools/__init__.py to export hybrid_observe and needs_vision_fallback
+
+Typecheck passes (mypy strict mode).
+
+**Learnings for future iterations:**
+- Screenshot capture should happen first before any page modifications
+- hybrid_observe() wraps browser_observe() and automatically includes screenshot
+- needs_vision_fallback() threshold of <10 elements indicates sparse accessibility tree
+- Screenshot path in PageSnapshot enables vision model analysis as fallback
+
+---
