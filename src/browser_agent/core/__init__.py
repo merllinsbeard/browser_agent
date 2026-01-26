@@ -1,6 +1,7 @@
 """Browser Agent core components."""
 
 from browser_agent.core.browser import launch_persistent_context
+from browser_agent.core.context import ContextTracker
 from browser_agent.core.llm import DEFAULT_MODEL, call_llm, get_openrouter_client
 from browser_agent.core.registry import ElementRegistry, StaleElementError
 from browser_agent.core.recovery import (
@@ -27,4 +28,5 @@ __all__ = [
     "RetryResult",
     "StuckDetector",
     "detect_stuck",
+    "ContextTracker",
 ]

@@ -307,3 +307,33 @@ Typecheck passes (mypy strict mode).
 - reset() method allows clearing stuck state after user intervention
 
 ---
+
+## Jan 26, 2026 - US-022
+
+- src/browser_agent/core/context.py (US-022):
+  - ContextTracker class: Tracks and manages context to prevent token bloat
+  - update_snapshot(): Updates current snapshot, returns previous (old snapshot discarded)
+  - get_current_snapshot(): Returns most recent PageSnapshot (or None)
+  - record_action(): Records action in history with type, success, message
+  - get_action_history(): Returns full action history (most recent first)
+  - get_recent_actions(): Returns last N actions (default 10)
+  - record_llm_call(): Records LLM call with optional token count
+  - get_llm_call_count(): Returns total LLM calls made
+  - get_total_tokens_used(): Returns total estimated tokens used
+  - get_context_summary(): Returns dict with context statistics
+  - reset(): Clears all context state
+
+- Single-snapshot retention: Only most recent snapshot kept, old ones discarded
+- Action history limited to max 50 entries (configurable)
+- LLM call and token tracking for budget monitoring
+
+- Updated src/browser_agent/core/__init__.py to export ContextTracker
+
+Typecheck passes (mypy strict mode).
+
+**Learnings for future iterations:**
+- Type annotation for dict with mixed types: dict[str, str | bool] with explicit variable annotation
+- Single-snapshot retention prevents token bloat from accumulating old page states
+- Action history with max length provides recent context without unlimited growth
+
+---
