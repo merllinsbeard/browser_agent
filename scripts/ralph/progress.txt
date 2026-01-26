@@ -630,3 +630,53 @@ Typecheck passes (mypy strict mode).
 - tmp_path fixture for temporary file/directory operations in tests
 
 ---
+## Jan 27, 2026 - US-033
+
+- tests/integration/test_agents.py (US-033):
+  - TestPlannerNavigatorHandoff (4 tests):
+    - test_planner_creates_plan_navigator_executes: Verifies Planner creates plan and Navigator executes steps
+    - test_navigator_observes_before_each_action: Verifies browser_observe() called before each action
+    - test_navigator_returns_to_planner_on_completion: Verifies DONE action signals completion
+    - test_navigator_returns_to_planner_on_failure: Verifies failures are reported back
+  - TestErrorRecoveryReobservation (6 tests):
+    - test_needs_reobservation_detects_*: Verifies re-observation triggers for detached, timeout, not_found, stale errors
+    - test_needs_reobservation_skips_success: Verifies successful actions don't trigger re-observation
+    - test_needs_reobservation_skips_unrelated_errors: Verifies unrelated errors don't trigger re-observation
+  - TestErrorRecoveryRetry (5 tests):
+    - test_retry_with_backoff_succeeds_on_first_retry: Verifies retry success on first attempt
+    - test_retry_with_backoff_different_strategies: Verifies different recovery strategies are used
+    - test_retry_with_backoff_exhaustion_prompts_user: Verifies exhausted retries signal user intervention
+    - test_retry_with_backoff_skips_if_initial_success: Verifies retry skipped if initial result succeeded
+    - test_retry_attempt_repr: Verifies RetryAttempt string representation
+  - TestErrorRecoveryStuckDetection (9 tests):
+    - test_stuck_detector_consecutive_failures: Verifies consecutive failures trigger stuck detection
+    - test_stuck_detector_no_progress: Verifies lack of progress triggers stuck detection
+    - test_stuck_detector_resets_on_progress: Verifies progress resets stuck state
+    - test_stuck_detector_url_loop_detection: Verifies URL loops contribute to stuck detection
+    - test_stuck_detector_get_stuck_message: Verifies stuck message provides context
+    - test_stuck_detector_reset: Verifies reset clears stuck state
+    - test_detect_stuck_functional_api: Verifies functional API for stuck detection
+    - test_detect_stuck_no_progress_trigger: Verifies no-progress trigger for stuck detection
+    - test_detect_stuck_not_stuck: Verifies agent not stuck below thresholds
+  - TestOverlayDetectionAndDismissal (5 tests):
+    - test_detect_overlays_finds_dialog_role: Verifies dialogs with role='dialog' are detected
+    - test_detect_overlays_finds_aria_modal: Verifies elements with aria-modal are detected
+    - test_detect_overlays_none_found: Verifies no overlays returns False
+    - test_dismiss_with_close_button: Verifies overlay dismissal via close button
+    - test_dismiss_with_escape_key: Verifies overlay dismissal via Escape key
+
+- tests/integration/__init__.py: Created package docstring for integration tests
+
+- Typecheck passes (mypy strict mode)
+- 29 tests: all passing
+
+**Learnings for future iterations:**
+- Integration tests verify orchestration between multiple components (Planner, Navigator, recovery systems)
+- Mock Playwright Page objects must have proper return values (e.g., response.status = 200, page.url)
+- retry_with_backoff() returns early on first attempt to signal caller to re-observe - this is intentional design
+- StuckDetector tracks both consecutive failures AND actions without progress (different thresholds)
+- Overlay detection checks both role='dialog' and aria-modal attributes
+- Use `assert result.error is not None` before accessing `result.error.lower()` due to `str | None` type
+- Nested functions in tests need explicit return type annotations (e.g., `def action_func() -> ActionResult`)
+
+---
