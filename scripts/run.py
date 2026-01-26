@@ -172,7 +172,7 @@ def main() -> None:
             registry = ElementRegistry()
             context_tracker = ContextTracker()
             stuck_detector = StuckDetector()
-            safety_agent = SafetyAgent(console)
+            safety_agent = SafetyAgent()
 
             # Create planner and navigator
             planner = PlannerAgent()
