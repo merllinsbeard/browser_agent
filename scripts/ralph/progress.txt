@@ -430,3 +430,28 @@ Typecheck passes (mypy strict mode).
 - Screenshot path in PageSnapshot enables vision model analysis as fallback
 
 ---
+
+## Jan 26, 2026 - US-026
+
+- src/browser_agent/tools/hybrid_observe.py (US-026):
+  - invoke_vision_model(): Vision model integration for screenshot analysis
+    - Reads screenshot file and base64-encodes it
+    - Creates vision message with text prompt and image_url (data URI format)
+    - Uses GPT-4o with vision as default model (openai/gpt-4o-2024-08-06)
+    - Calls call_llm() from core.llm for API integration
+    - Returns vision model response with element descriptions
+  - Vision model invoked when ARIA snapshot has <10 interactive elements
+  - Uses GPT-4o Vision via OpenRouter API
+  - Returns element descriptions from screenshot
+
+- Updated src/browser_agent/tools/__init__.py to export invoke_vision_model
+
+Typecheck passes (mypy strict mode).
+
+**Learnings for future iterations:**
+- Vision messages use content array with text and image_url types
+- Base64 encoding for images: base64.b64encode(f.read()).decode("utf-8")
+- Data URI format: f"data:image/png;base64,{image_data}"
+- Vision model default: openai/gpt-4o-2024-08-06 via OpenRouter
+
+---

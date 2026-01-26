@@ -384,8 +384,8 @@
         "Typecheck passes"
       ],
       "priority": 26,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: invoke_vision_model() with base64-encoded screenshot, GPT-4o default model (openai/gpt-4o-2024-08-06), vision message format with image_url, uses call_llm() from core.llm, updated tools/__init__.py to export invoke_vision_model"
     },
     {
       "id": "US-027",

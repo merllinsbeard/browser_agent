@@ -4,14 +4,63 @@ This module provides page observation with automatic screenshot capture
 for cases where the accessibility tree is insufficient.
 """
 
+import base64
 from pathlib import Path
 
 from playwright.sync_api import Page
 
+from browser_agent.core.llm import call_llm
 from browser_agent.core.registry import ElementRegistry
 from browser_agent.models.snapshot import PageSnapshot
 from browser_agent.tools.screenshot import capture_screenshot
 from browser_agent.tools import observe
+
+
+def invoke_vision_model(
+    screenshot_path: Path,
+    prompt: str = "Describe the visible interactive elements on this page. List buttons, links, input fields, and other clickable elements with their locations.",
+    model: str | None = None,
+) -> str:
+    """Invoke vision model to analyze screenshot.
+
+    Args:
+        screenshot_path: Path to the screenshot file.
+        prompt: The prompt to send to the vision model.
+        model: Model name to use. If None, uses a vision-capable default.
+
+    Returns:
+        The vision model's response with element descriptions.
+    """
+    # Default to GPT-4o with vision capabilities
+    if model is None:
+        model = "openai/gpt-4o-2024-08-06"
+
+    # Read and encode the screenshot
+    with open(screenshot_path, "rb") as f:
+        image_data = base64.b64encode(f.read()).decode("utf-8")
+
+    # Create vision message with image
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": prompt,
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{image_data}",
+                    },
+                },
+            ],
+        },
+    ]
+
+    # Call LLM with vision message
+    response = call_llm(messages, model=model)
+    return response
 
 
 def hybrid_observe(
