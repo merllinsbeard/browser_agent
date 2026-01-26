@@ -2,27 +2,83 @@
 
 This module provides recovery strategies for handling failures during
 browser automation, including overlay detection and dismissal.
+
+Follows CLAUDE.md constraints:
+- NO hardcoded selectors
+- Uses element registry pattern for all element interactions
+- Runtime page text only as observed data
 """
 
 import time
 from typing import Callable
 
-from playwright.sync_api import Page
+from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError
 
+from browser_agent.core.logging import ErrorIds, logError, logEvent, logForDebugging
+from browser_agent.core.registry import ElementRegistry
 from browser_agent.models.element import InteractiveElement
-from browser_agent.models.result import ActionResult
+from browser_agent.models.result import ActionResult, failure_result
 from browser_agent.models.snapshot import PageSnapshot
+
+
+def _find_dismissal_elements(snapshot: PageSnapshot) -> dict[str, list[InteractiveElement]]:
+    """Find close/cancel buttons from the page snapshot.
+
+    Uses ONLY runtime-observed data from the snapshot, following CLAUDE.md rules.
+
+    Args:
+        snapshot: The current page snapshot to analyze for dismissal elements.
+
+    Returns:
+        A dict mapping dismissal type to list of matching elements:
+        - "close": Close/X buttons
+        - "cancel": Cancel/Close/No buttons
+    """
+    result: dict[str, list[InteractiveElement]] = {"close": [], "cancel": []}
+
+    for elem in snapshot.interactive_elements:
+        # Check if this element is a button or link
+        if elem.role not in ("button", "link"):
+            continue
+
+        # Build text to search from runtime-observed attributes
+        text_to_search = (
+            (elem.name or "").lower() +
+            " " +
+            (elem.aria_label or "").lower() +
+            " " +
+            (elem.placeholder or "").lower()
+        )
+
+        # Close button patterns (X, close, etc.)
+        close_patterns = ["×", "x", "close", "✕"]
+        if any(pattern in text_to_search for pattern in close_patterns):
+            result["close"].append(elem)
+
+        # Cancel button patterns
+        cancel_patterns = ["cancel", "close", "no", "dismiss", "not now", "later"]
+        if any(pattern in text_to_search for pattern in cancel_patterns):
+            result["cancel"].append(elem)
+
+    logForDebugging(
+        f"Found {len(result['close'])} close buttons, {len(result['cancel'])} cancel buttons"
+    )
+    return result
 
 
 def detect_and_handle_overlays(
     page: Page,
     snapshot: PageSnapshot,
+    registry: ElementRegistry,
 ) -> tuple[bool, str]:
-    """Detect and handle modal overlays/popups that may block actions.
+    """Detect and handle modal overlays/popups using element registry pattern.
+
+    NO hardcoded selectors - uses only runtime-observed data from snapshot.
 
     Args:
         page: The Playwright Page object.
         snapshot: The current page snapshot to analyze for overlays.
+        registry: The ElementRegistry for getting element locators.
 
     Returns:
         A tuple of (overlays_found, dismissal_result):
@@ -30,13 +86,14 @@ def detect_and_handle_overlays(
         - dismissal_result: Description of what was done
     """
     # Look for dialog elements in the snapshot's interactive elements
+    # Uses runtime data only - no hardcoded patterns
     dialogs = [
         elem
         for elem in snapshot.interactive_elements
         if elem.role == "dialog" or elem.name.lower() in ("modal", "popup", "dialog")
     ]
 
-    # Also check for aria-modal attribute in element descriptions
+    # Check for aria-modal attribute in runtime-observed data
     aria_modals = [
         elem
         for elem in snapshot.interactive_elements
@@ -48,7 +105,15 @@ def detect_and_handle_overlays(
     if not all_overlays:
         return False, "No overlays detected"
 
-    # Try to dismiss each overlay
+    logEvent(
+        "overlays_detected",
+        {"count": len(all_overlays)}
+    )
+
+    # Find dismissal buttons from the snapshot
+    dismissal_elements = _find_dismissal_elements(snapshot)
+
+    # Try to dismiss each overlay using element registry
     dismissed_count = 0
     failed_dismissals = []
 
@@ -56,15 +121,19 @@ def detect_and_handle_overlays(
         # Try common dismissal strategies in order
         dismissed = False
 
-        # Strategy 1: Look for close button (X) in the overlay
-        if not dismissed:
-            dismissed = _try_dismiss_with_close_button(page, overlay)
+        # Strategy 1: Try close buttons via element registry
+        if not dismissed and dismissal_elements["close"]:
+            dismissed = _try_dismiss_with_elements(
+                page, dismissal_elements["close"], registry
+            )
 
-        # Strategy 2: Look for Cancel/Close/No buttons
-        if not dismissed:
-            dismissed = _try_dismiss_with_cancel_button(page, overlay)
+        # Strategy 2: Try cancel buttons via element registry
+        if not dismissed and dismissal_elements["cancel"]:
+            dismissed = _try_dismiss_with_elements(
+                page, dismissal_elements["cancel"], registry
+            )
 
-        # Strategy 3: Try Escape key
+        # Strategy 3: Try Escape key (no selector needed)
         if not dismissed:
             dismissed = _try_dismiss_with_escape(page)
 
@@ -77,77 +146,50 @@ def detect_and_handle_overlays(
         result_msg = f"Dismissed {dismissed_count} of {len(all_overlays)} overlay(s)"
         if failed_dismissals:
             result_msg += f" (failed: {', '.join(failed_dismissals)})"
+        logEvent("overlays_dismissed", {"dismissed": dismissed_count, "total": len(all_overlays)})
         return True, result_msg
 
+    logError(
+        ErrorIds.OVERLAY_DISMISS_FAILED,
+        f"Could not dismiss {len(all_overlays)} overlay(s)"
+    )
     return True, f"Found {len(all_overlays)} overlay(s) but could not dismiss any"
 
 
-def _try_dismiss_with_close_button(page: Page, overlay: InteractiveElement) -> bool:
-    """Try to dismiss overlay by clicking a close button (X).
+def _try_dismiss_with_elements(
+    page: Page,
+    elements: list[InteractiveElement],
+    registry: ElementRegistry,
+) -> bool:
+    """Try to dismiss overlay by clicking elements via element registry.
 
     Args:
         page: The Playwright Page object.
-        overlay: The overlay element to dismiss.
+        elements: List of elements to try clicking.
+        registry: The ElementRegistry for getting locators.
 
     Returns:
-        True if dismissal was attempted, False otherwise.
+        True if any click was successful, False otherwise.
     """
-    try:
-        # Look for buttons with close/X patterns near the dialog
-        close_patterns = ["×", "x", "close", "✕"]
-
-        # Try to find close buttons within the dialog
-        for pattern in close_patterns:
-            try:
-                # Look for buttons or links with the close pattern
-                selectors = [
-                    f'button:has-text("{pattern}")',
-                    f'a[role="button"]:has-text("{pattern}")',
-                    f'[aria-label*="close" i], [aria-label*="×" i]',
-                ]
-
-                for selector in selectors:
-                    try:
-                        locator = page.locator(selector).first
-                        if locator.count() > 0:
-                            locator.click(timeout=2000)
-                            return True
-                    except Exception:
-                        continue
-            except Exception:
-                continue
-
-    except Exception:
-        pass
-
-    return False
-
-
-def _try_dismiss_with_cancel_button(page: Page, overlay: InteractiveElement) -> bool:
-    """Try to dismiss overlay by clicking Cancel/Close/No button.
-
-    Args:
-        page: The Playwright Page object.
-        overlay: The overlay element to dismiss.
-
-    Returns:
-        True if dismissal was attempted, False otherwise.
-    """
-    try:
-        cancel_patterns = ["cancel", "close", "no", "dismiss", "not now", "later"]
-
-        for pattern in cancel_patterns:
-            try:
-                selector = f'button:has-text("{pattern}")'
-                locator = page.locator(selector).first
-                if locator.count() > 0:
-                    locator.click(timeout=2000)
-                    return True
-            except Exception:
-                continue
-
-    except Exception:
-        pass
+    for elem in elements:
+        try:
+            locator = registry.get_locator(page, elem.ref)
+            locator.click(timeout=2000)
+            logEvent("overlay_dismissed_via_element", {"element_ref": elem.ref})
+            return True
+        except PlaywrightTimeoutError:
+            logForDebugging(
+                f"Timeout clicking {elem.ref}",
+                level="debug"
+            )
+            continue
+        except Exception as e:
+            logError(
+                ErrorIds.OVERLAY_DISMISS_FAILED,
+                f"Error clicking {elem.ref}",
+                exc_info=False
+            )
+            continue
 
     return False
 
@@ -159,12 +201,18 @@ def _try_dismiss_with_escape(page: Page) -> bool:
         page: The Playwright Page object.
 
     Returns:
-        True if Escape was pressed, False otherwise.
+        True if Escape was pressed successfully.
     """
     try:
         page.keyboard.press("Escape")
+        logEvent("overlay_dismissed_via_escape")
         return True
-    except Exception:
+    except Exception as e:
+        logError(
+            ErrorIds.OVERLAY_DISMISS_FAILED,
+            "Error pressing Escape",
+            exc_info=False
+        )
         return False
 
 
@@ -243,6 +291,7 @@ def retry_with_backoff(
     page: Page,
     initial_result: ActionResult,
     action_func: Callable[[], ActionResult],
+    registry: ElementRegistry,
     max_attempts: int = 3,
     initial_backoff: float = 1.0,
 ) -> RetryResult:
@@ -255,6 +304,7 @@ def retry_with_backoff(
         page: The Playwright Page object.
         initial_result: The result of the initial failed action.
         action_func: Function that executes the action (takes no args).
+        registry: The ElementRegistry for overlay detection.
         max_attempts: Maximum number of retry attempts (default 3).
         initial_backoff: Initial backoff time in seconds (default 1.0).
 
@@ -307,8 +357,15 @@ def retry_with_backoff(
             # Try waiting for load state
             try:
                 page.wait_for_load_state("networkidle", timeout=5000)
-            except Exception:
-                pass  # Continue anyway
+                logForDebugging("Network idle achieved")
+            except PlaywrightTimeoutError:
+                logForDebugging("Network idle timeout - continuing anyway", level="warning")
+            except Exception as e:
+                logError(
+                    ErrorIds.OVERLAY_DISMISS_FAILED,
+                    "Error waiting for network idle",
+                    exc_info=False
+                )
 
             attempt = RetryAttempt(strategy, description)
             attempts.append(attempt)
@@ -317,13 +374,19 @@ def retry_with_backoff(
             try:
                 last_result = action_func()
                 if last_result.success:
+                    logEvent("retry_succeeded", {"attempt": attempt_num + 1})
                     return RetryResult(
                         success=True,
                         final_result=last_result,
                         attempts_made=attempts,
                     )
             except Exception as e:
-                last_result = ActionResult.failure_result(
+                logError(
+                    ErrorIds.UNEXPECTED_ERROR,
+                    f"Retry attempt {attempt_num + 1} failed",
+                    exc_info=False
+                )
+                last_result = failure_result(
                     message=f"Retry attempt {attempt_num + 1} failed",
                     error=str(e),
                 )
@@ -337,18 +400,19 @@ def retry_with_backoff(
 
             # Check for any new overlays that might have appeared
             from browser_agent.tools.observe import browser_observe
-            from browser_agent.core.registry import ElementRegistry
 
-            registry = ElementRegistry()
             try:
                 snapshot = browser_observe(page, registry)
-                overlays_found, overlay_msg = detect_and_handle_overlays(page, snapshot)
+                overlays_found, overlay_msg = detect_and_handle_overlays(
+                    page, snapshot, registry
+                )
                 if overlays_found:
                     description += f" - {overlay_msg}"
 
                     # Try the action again after dismissing overlays
                     last_result = action_func()
                     if last_result.success:
+                        logEvent("retry_succeeded", {"attempt": attempt_num + 1})
                         attempt = RetryAttempt(strategy, description)
                         attempts.append(attempt)
                         return RetryResult(
@@ -356,13 +420,21 @@ def retry_with_backoff(
                             final_result=last_result,
                             attempts_made=attempts,
                         )
-            except Exception:
-                pass
+            except Exception as e:
+                logError(
+                    ErrorIds.OVERLAY_DETECTION_FAILED,
+                    "Error during overlay check",
+                    exc_info=False
+                )
 
             attempt = RetryAttempt(strategy, description)
             attempts.append(attempt)
 
-    # All retries exhausted - ask user for guidance
+    # All retries exhausted - log and ask user for guidance
+    logError(
+        ErrorIds.RETRY_EXHAUSTED,
+        f"All {max_attempts} retry attempts exhausted"
+    )
     return RetryResult(
         success=False,
         final_result=last_result,

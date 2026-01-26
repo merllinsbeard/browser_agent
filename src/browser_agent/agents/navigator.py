@@ -7,7 +7,7 @@ according to a plan.
 from playwright.sync_api import Page
 
 from browser_agent.core.registry import ElementRegistry
-from browser_agent.models.result import ActionResult
+from browser_agent.models.result import ActionResult, failure_result
 from browser_agent.tools.actions import (
     click,
     done,
@@ -72,7 +72,7 @@ class NavigatorAgent:
                         self._registry.increment_version()
                     return result
                 else:
-                    return ActionResult.failure_result(
+                    return failure_result(
                         f"Could not extract URL from: {step_description}"
                     )
 
@@ -80,22 +80,20 @@ class NavigatorAgent:
                 elem_id = self._extract_element_id(step_description)
                 if elem_id:
                     return click(self._page, self._registry, elem_id)
-                return ActionResult.failure_result(f"No element ID found in: {step_description}")
+                return failure_result(f"No element ID found in: {step_description}")
 
             elif parts[0] == "TYPE":
                 elem_id = self._extract_element_id(step_description)
                 text = self._extract_text_to_type(step_description)
                 if elem_id and text:
-                    result = type_(self._page, self._registry, elem_id, text)
-                    assert isinstance(result, ActionResult)  # Type guard
-                    return result
-                return ActionResult.failure_result(f"Missing element ID or text in: {step_description}")
+                    return type_(self._page, self._registry, elem_id, text)
+                return failure_result(f"Missing element ID or text in: {step_description}")
 
             elif parts[0] == "PRESS":
                 key = self._extract_key(step_description)
                 if key:
                     return press(self._page, key)
-                return ActionResult.failure_result(f"No key found in: {step_description}")
+                return failure_result(f"No key found in: {step_description}")
 
             elif parts[0] == "SCROLL":
                 return scroll(self._page)
@@ -113,12 +111,12 @@ class NavigatorAgent:
                 return done(summary)
 
             else:
-                return ActionResult.failure_result(
+                return failure_result(
                     f"Unknown action in step: {step_description}"
                 )
 
         except Exception as e:
-            return ActionResult.failure_result(
+            return failure_result(
                 f"Error executing step: {step_description}",
                 error=str(e),
             )

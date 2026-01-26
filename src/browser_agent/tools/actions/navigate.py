@@ -7,7 +7,7 @@ from typing import Literal
 
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError
 
-from browser_agent.models.result import ActionResult
+from browser_agent.models.result import ActionResult, failure_result, success_result
 
 WaitUntil = Literal["commit", "domcontentloaded", "load", "networkidle"]
 
@@ -35,29 +35,29 @@ def navigate(
 
         if response is None:
             # Navigation succeeded but no response received (e.g., for non-http protocols)
-            return ActionResult.success_result(
+            return success_result(
                 message=f"Successfully navigated to {url!r}"
             )
 
         status = response.status
         if 200 <= status < 400:
-            return ActionResult.success_result(
+            return success_result(
                 message=f"Successfully navigated to {url!r} (status: {status})"
             )
         else:
-            return ActionResult.failure_result(
+            return failure_result(
                 message=f"Navigation to {url!r} returned status {status}",
                 error=f"HTTP {status}",
             )
 
     except PlaywrightTimeoutError as e:
-        return ActionResult.failure_result(
+        return failure_result(
             message=f"Timeout navigating to {url!r}",
             error=str(e),
         )
 
     except Exception as e:
-        return ActionResult.failure_result(
+        return failure_result(
             message=f"Failed to navigate to {url!r}",
             error=str(e),
         )

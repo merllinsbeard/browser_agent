@@ -7,7 +7,7 @@ input elements by their reference ID.
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError
 
 from browser_agent.core.registry import ElementRegistry, StaleElementError
-from browser_agent.models.result import ActionResult
+from browser_agent.models.result import ActionResult, failure_result, success_result
 
 
 def type_(
@@ -36,24 +36,24 @@ def type_(
         # Fill the element with text
         locator.fill(text, timeout=timeout)
 
-        return ActionResult.success_result(
+        return success_result(
             message=f"Successfully typed text into element {element_id!r}"
         )
 
     except StaleElementError as e:
-        return ActionResult.failure_result(
+        return failure_result(
             message=f"Failed to type into element {element_id!r}: stale element reference",
             error=str(e),
         )
 
     except PlaywrightTimeoutError as e:
-        return ActionResult.failure_result(
+        return failure_result(
             message=f"Timeout typing into element {element_id!r}",
             error=str(e),
         )
 
     except Exception as e:
-        return ActionResult.failure_result(
+        return failure_result(
             message=f"Failed to type into element {element_id!r}",
             error=str(e),
         )

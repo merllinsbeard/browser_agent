@@ -176,7 +176,7 @@ def main() -> None:
 
             # Create planner and navigator
             planner = PlannerAgent()
-            navigator = NavigatorAgent(page, registry, console)
+            navigator = NavigatorAgent(page, registry)
 
             # Generate plan
             console.print("\n[yellow]Creating execution plan...[/yellow]")

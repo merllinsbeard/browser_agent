@@ -7,7 +7,7 @@ elements by their reference ID.
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError
 
 from browser_agent.core.registry import ElementRegistry, StaleElementError
-from browser_agent.models.result import ActionResult
+from browser_agent.models.result import ActionResult, failure_result, success_result
 
 
 def click(
@@ -34,24 +34,24 @@ def click(
         # Perform the click
         locator.click(timeout=timeout)
 
-        return ActionResult.success_result(
+        return success_result(
             message=f"Successfully clicked element {element_id!r}"
         )
 
     except StaleElementError as e:
-        return ActionResult.failure_result(
+        return failure_result(
             message=f"Failed to click element {element_id!r}: stale element reference",
             error=str(e),
         )
 
     except PlaywrightTimeoutError as e:
-        return ActionResult.failure_result(
+        return failure_result(
             message=f"Timeout clicking element {element_id!r}",
             error=str(e),
         )
 
     except Exception as e:
-        return ActionResult.failure_result(
+        return failure_result(
             message=f"Failed to click element {element_id!r}",
             error=str(e),
         )

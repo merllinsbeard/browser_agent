@@ -3,7 +3,7 @@
 This module provides the done function for signaling task completion.
 """
 
-from browser_agent.models.result import ActionResult
+from browser_agent.models.result import ActionResult, success_result
 
 
 def done(summary: str) -> ActionResult:
@@ -19,9 +19,6 @@ def done(summary: str) -> ActionResult:
         This function should be called when the agent has successfully
         completed the user's task. The summary will be displayed to the user.
     """
-    return ActionResult(
-        success=True,
-        message=f"Task completed: {summary}",
-        new_snapshot=None,
-        error=None,
+    return success_result(
+        message=f"Task completed: {summary}"
     )

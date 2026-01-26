@@ -5,7 +5,7 @@ This module provides the scroll function for scrolling the page.
 
 from playwright.sync_api import Page
 
-from browser_agent.models.result import ActionResult
+from browser_agent.models.result import ActionResult, failure_result, success_result
 
 
 def scroll(page: Page, dx: int = 0, dy: int = 0) -> ActionResult:
@@ -26,7 +26,7 @@ def scroll(page: Page, dx: int = 0, dy: int = 0) -> ActionResult:
     """
     try:
         if dx == 0 and dy == 0:
-            return ActionResult.success_result(
+            return success_result(
                 message="No scroll performed (dx=0, dy=0)"
             )
 
@@ -38,12 +38,12 @@ def scroll(page: Page, dx: int = 0, dy: int = 0) -> ActionResult:
         if dy != 0:
             direction_parts.append(f"{'down' if dy > 0 else 'up'} {abs(dy)}px")
 
-        return ActionResult.success_result(
+        return success_result(
             message=f"Successfully scrolled {' and '.join(direction_parts)}"
         )
 
     except Exception as e:
-        return ActionResult.failure_result(
+        return failure_result(
             message=f"Failed to scroll page",
             error=str(e),
         )

@@ -12,7 +12,7 @@ from browser_agent.agents.navigator import NavigatorAgent
 from browser_agent.agents.planner import PlannerAgent
 from browser_agent.core.registry import ElementRegistry
 from browser_agent.models.element import InteractiveElement
-from browser_agent.models.result import ActionResult
+from browser_agent.models.result import ActionResult, failure_result, success_result
 from browser_agent.models.snapshot import PageSnapshot
 from browser_agent.core.recovery import (
     RetryAttempt,
@@ -150,7 +150,7 @@ class TestErrorRecoveryReobservation:
 
     def test_needs_reobservation_detects_detached_element(self) -> None:
         """Test that detached element errors trigger re-observation."""
-        result = ActionResult.failure_result(
+        result = failure_result(
             "Element clicked",
             error="Element is detached from DOM"
         )
@@ -159,7 +159,7 @@ class TestErrorRecoveryReobservation:
 
     def test_needs_reobservation_detects_timeout(self) -> None:
         """Test that timeout errors trigger re-observation."""
-        result = ActionResult.failure_result(
+        result = failure_result(
             "Action timed out",
             error="Timeout waiting for selector"
         )
@@ -168,7 +168,7 @@ class TestErrorRecoveryReobservation:
 
     def test_needs_reobservation_detects_not_found(self) -> None:
         """Test that not found errors trigger re-observation."""
-        result = ActionResult.failure_result(
+        result = failure_result(
             "Element not found",
             error="Selector not found"
         )
@@ -177,7 +177,7 @@ class TestErrorRecoveryReobservation:
 
     def test_needs_reobservation_detects_stale_element(self) -> None:
         """Test that stale element errors trigger re-observation."""
-        result = ActionResult.failure_result(
+        result = failure_result(
             "Element is stale",
             error="StaleElementReference"
         )
@@ -186,13 +186,13 @@ class TestErrorRecoveryReobservation:
 
     def test_needs_reobservation_skips_success(self) -> None:
         """Test that successful actions don't trigger re-observation."""
-        result = ActionResult.success_result("Action completed")
+        result = success_result("Action completed")
 
         assert needs_reobservation(result) is False
 
     def test_needs_reobservation_skips_unrelated_errors(self) -> None:
         """Test that unrelated errors don't trigger re-observation."""
-        result = ActionResult.failure_result(
+        result = failure_result(
             "Network error",
             error="Connection refused"
         )
@@ -212,19 +212,20 @@ class TestErrorRecoveryRetry:
     def test_retry_with_backoff_succeeds_on_first_retry(self) -> None:
         """Test that retry succeeds when action works on first retry."""
         mock_page = MagicMock()
+        mock_registry = MagicMock()
 
         # Initial failure
-        initial_result = ActionResult.failure_result("Timed out", error="Timeout")
+        initial_result = failure_result("Timed out", error="Timeout")
 
         # Action function that succeeds on retry
         call_count = [0]
         def action_func() -> ActionResult:
             call_count[0] += 1
             if call_count[0] == 1:
-                return ActionResult.failure_result("Still failing")
-            return ActionResult.success_result("Success!")
+                return failure_result("Still failing")
+            return success_result("Success!")
 
-        result = retry_with_backoff(mock_page, initial_result, action_func, max_attempts=3)
+        result = retry_with_backoff(mock_page, initial_result, action_func, mock_registry, max_attempts=3)
 
         # First attempt is the reobserve signal, second is actual retry
         assert result.attempts_made[0].strategy == "reobserve_and_dismiss"
@@ -232,16 +233,18 @@ class TestErrorRecoveryRetry:
     def test_retry_with_backoff_different_strategies(self) -> None:
         """Test that each retry uses a different strategy."""
         mock_page = MagicMock()
+        mock_registry = MagicMock()
 
-        initial_result = ActionResult.failure_result("Failed")
+        initial_result = failure_result("Failed")
 
         def action_func() -> ActionResult:
-            return ActionResult.failure_result("Still failing")
+            return failure_result("Still failing")
 
         result = retry_with_backoff(
             mock_page,
             initial_result,
             action_func,
+            mock_registry,
             max_attempts=3
         )
 
@@ -254,16 +257,18 @@ class TestErrorRecoveryRetry:
     def test_retry_with_backoff_exhaustion_prompts_user(self) -> None:
         """Test that exhausted retries signal user should be asked."""
         mock_page = MagicMock()
+        mock_registry = MagicMock()
 
-        initial_result = ActionResult.failure_result("Failed")
+        initial_result = failure_result("Failed")
 
         def action_func() -> ActionResult:
-            return ActionResult.failure_result("Always fails")
+            return failure_result("Always fails")
 
         result = retry_with_backoff(
             mock_page,
             initial_result,
             action_func,
+            mock_registry,
             max_attempts=3
         )
 
@@ -276,13 +281,14 @@ class TestErrorRecoveryRetry:
     def test_retry_with_backoff_skips_if_initial_success(self) -> None:
         """Test that retry is skipped if initial result was successful."""
         mock_page = MagicMock()
+        mock_registry = MagicMock()
 
-        initial_result = ActionResult.success_result("Already succeeded")
+        initial_result = success_result("Already succeeded")
 
         def action_func() -> ActionResult:
-            return ActionResult.success_result("Should not be called")
+            return success_result("Should not be called")
 
-        result = retry_with_backoff(mock_page, initial_result, action_func)
+        result = retry_with_backoff(mock_page, initial_result, action_func, mock_registry)
 
         assert result.success is True
         assert len(result.attempts_made) == 0
@@ -310,7 +316,7 @@ class TestErrorRecoveryStuckDetection:
 
         # Record 5 consecutive failures
         for _ in range(5):
-            result = ActionResult.failure_result("Action failed")
+            result = failure_result("Action failed")
             detector.record_action(result)
 
         assert detector.is_stuck() is True
@@ -321,7 +327,7 @@ class TestErrorRecoveryStuckDetection:
 
         # Record 10 actions without progress (threshold * 2)
         for _ in range(10):
-            result = ActionResult.success_result("No meaningful progress")
+            result = success_result("No meaningful progress")
             detector.record_action(result, snapshot_version=1)
 
         assert detector.is_stuck() is True
@@ -332,11 +338,11 @@ class TestErrorRecoveryStuckDetection:
 
         # Record some failures
         for _ in range(3):
-            result = ActionResult.failure_result("Failed")
+            result = failure_result("Failed")
             detector.record_action(result)
 
         # Record progress (new snapshot version)
-        progress_result = ActionResult.success_result("Progress made", new_snapshot=MagicMock(version=2))
+        progress_result = success_result("Progress made", new_snapshot=MagicMock(version=2))
         detector.record_action(progress_result, snapshot_version=2)
 
         # Should not be stuck after progress
@@ -350,7 +356,7 @@ class TestErrorRecoveryStuckDetection:
         urls = ["https://a.com", "https://b.com", "https://c.com"]
         for _ in range(10):
             for url in urls:
-                result = ActionResult.success_result("Navigated")
+                result = success_result("Navigated")
                 detector.record_action(result, current_url=url, snapshot_version=1)
 
         assert detector.is_stuck() is True
@@ -361,7 +367,7 @@ class TestErrorRecoveryStuckDetection:
 
         # Record consecutive failures
         for _ in range(5):
-            result = ActionResult.failure_result("Failed")
+            result = failure_result("Failed")
             detector.record_action(result, current_url="https://example.com")
 
         message = detector.get_stuck_message()
@@ -375,7 +381,7 @@ class TestErrorRecoveryStuckDetection:
 
         # Record failures
         for _ in range(5):
-            result = ActionResult.failure_result("Failed")
+            result = failure_result("Failed")
             detector.record_action(result)
 
         assert detector.is_stuck() is True
@@ -431,6 +437,7 @@ class TestOverlayDetectionAndDismissal:
     def test_detect_overlays_finds_dialog_role(self) -> None:
         """Test that dialogs with role='dialog' are detected."""
         mock_page = MagicMock()
+        mock_registry = MagicMock()
 
         # Create snapshot with dialog element
         dialog = InteractiveElement(
@@ -446,7 +453,7 @@ class TestOverlayDetectionAndDismissal:
             version=1,
         )
 
-        overlays_found, message = detect_and_handle_overlays(mock_page, snapshot)
+        overlays_found, message = detect_and_handle_overlays(mock_page, snapshot, mock_registry)
 
         assert overlays_found is True
         assert "overlay" in message.lower()
@@ -454,6 +461,7 @@ class TestOverlayDetectionAndDismissal:
     def test_detect_overlays_finds_aria_modal(self) -> None:
         """Test that elements with aria-modal are detected."""
         mock_page = MagicMock()
+        mock_registry = MagicMock()
 
         # Create snapshot with aria-modal element
         modal = InteractiveElement(
@@ -470,13 +478,14 @@ class TestOverlayDetectionAndDismissal:
             version=1,
         )
 
-        overlays_found, message = detect_and_handle_overlays(mock_page, snapshot)
+        overlays_found, message = detect_and_handle_overlays(mock_page, snapshot, mock_registry)
 
         assert overlays_found is True
 
     def test_detect_overlays_none_found(self) -> None:
         """Test that no overlays returns False."""
         mock_page = MagicMock()
+        mock_registry = MagicMock()
 
         # Create snapshot without overlays
         button = InteractiveElement(
@@ -492,7 +501,7 @@ class TestOverlayDetectionAndDismissal:
             version=1,
         )
 
-        overlays_found, message = detect_and_handle_overlays(mock_page, snapshot)
+        overlays_found, message = detect_and_handle_overlays(mock_page, snapshot, mock_registry)
 
         assert overlays_found is False
         assert message == "No overlays detected"
@@ -500,6 +509,7 @@ class TestOverlayDetectionAndDismissal:
     def test_dismiss_with_close_button(self) -> None:
         """Test overlay dismissal via close button."""
         mock_page = MagicMock()
+        mock_registry = MagicMock()
         mock_locator = MagicMock()
         mock_locator.count.return_value = 1
         mock_page.locator.return_value.first = mock_locator
@@ -518,7 +528,7 @@ class TestOverlayDetectionAndDismissal:
             version=1,
         )
 
-        overlays_found, message = detect_and_handle_overlays(mock_page, snapshot)
+        overlays_found, message = detect_and_handle_overlays(mock_page, snapshot, mock_registry)
 
         # Close button strategy should have been attempted
         assert overlays_found is True
@@ -526,6 +536,7 @@ class TestOverlayDetectionAndDismissal:
     def test_dismiss_with_escape_key(self) -> None:
         """Test overlay dismissal via Escape key."""
         mock_page = MagicMock()
+        mock_registry = MagicMock()
         # Mock that no close buttons are found
         mock_page.locator.return_value.first.count.return_value = 0
 
@@ -542,7 +553,7 @@ class TestOverlayDetectionAndDismissal:
             version=1,
         )
 
-        overlays_found, message = detect_and_handle_overlays(mock_page, snapshot)
+        overlays_found, message = detect_and_handle_overlays(mock_page, snapshot, mock_registry)
 
         # Escape key should have been attempted
         mock_page.keyboard.press.assert_called()

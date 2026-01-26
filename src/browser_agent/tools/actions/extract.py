@@ -7,7 +7,7 @@ from typing import cast
 
 from playwright.sync_api import Page
 
-from browser_agent.models.result import ActionResult
+from browser_agent.models.result import ActionResult, failure_result, success_result
 
 
 def extract(page: Page, target: str) -> ActionResult:
@@ -32,26 +32,26 @@ def extract(page: Page, target: str) -> ActionResult:
         # Handle common extraction targets
         if "title" in target_lower:
             result = cast(str, page.title)
-            return ActionResult.success_result(
+            return success_result(
                 message=f"Page title: {result}",
             )
 
         elif "url" in target_lower or "address" in target_lower:
             result = cast(str, page.url)
-            return ActionResult.success_result(
+            return success_result(
                 message=f"Page URL: {result}",
             )
 
         elif "text" in target_lower or "content" in target_lower:
             result = cast(str, page.inner_text("body")[:4000])  # Limit to 4K chars
-            return ActionResult.success_result(
+            return success_result(
                 message=f"Page text content (truncated): {result}",
             )
 
         elif "link" in target_lower or "anchor" in target_lower:
             links = page.locator("a").all()
             link_texts = [link.inner_text() for link in links[:20]]  # Limit to 20
-            return ActionResult.success_result(
+            return success_result(
                 message=f"Found {len(links)} links. First 20: {link_texts}",
             )
 
@@ -63,19 +63,19 @@ def extract(page: Page, target: str) -> ActionResult:
                 inp_name = inp.get_attribute("name") or ""
                 inp_placeholder = inp.get_attribute("placeholder") or ""
                 input_info.append(f"{inp_type}(name={inp_name!r}, placeholder={inp_placeholder!r})")
-            return ActionResult.success_result(
+            return success_result(
                 message=f"Found {len(inputs)} inputs. First 20: {input_info}",
             )
 
         else:
             # Generic fallback: return page text
             result = cast(str, page.inner_text("body")[:2000])
-            return ActionResult.success_result(
+            return success_result(
                 message=f"Page content (first 2000 chars): {result}",
             )
 
     except Exception as e:
-        return ActionResult.failure_result(
+        return failure_result(
             message=f"Failed to extract {target!r} from page",
             error=str(e),
         )

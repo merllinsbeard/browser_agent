@@ -5,7 +5,7 @@ This module provides the press function for pressing keyboard keys.
 
 from playwright.sync_api import Page
 
-from browser_agent.models.result import ActionResult
+from browser_agent.models.result import ActionResult, failure_result, success_result
 
 
 def press(page: Page, key: str) -> ActionResult:
@@ -29,12 +29,12 @@ def press(page: Page, key: str) -> ActionResult:
     try:
         page.keyboard.press(key)
 
-        return ActionResult.success_result(
+        return success_result(
             message=f"Successfully pressed key {key!r}"
         )
 
     except Exception as e:
-        return ActionResult.failure_result(
+        return failure_result(
             message=f"Failed to press key {key!r}",
             error=str(e),
         )

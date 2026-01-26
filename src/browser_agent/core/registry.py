@@ -94,19 +94,24 @@ class ElementRegistry:
         return self._current_version
 
     def increment_version(self) -> int:
-        """Increment the snapshot version and clear stale entries.
+        """Increment the snapshot version.
+
+        This marks all existing entries as stale (their snapshot_version
+        will be less than current_version). The entries are NOT removed -
+        they remain in the registry but will be rejected by get_locator()
+        and get_element() due to version mismatch.
 
         Returns:
             The new version number.
         """
-        # Clear entries from old versions (those not matching current version)
-        # Then increment the version - current entries will be marked as stale
-        # and will be rejected by get_locator/get_element
+        # Only keep entries from the current version before incrementing
+        # This removes any stale entries that might have been manually added
         self._entries = {
             ref: entry
             for ref, entry in self._entries.items()
             if entry.snapshot_version == self._current_version
         }
+        # Now increment - existing entries are marked as stale
         self._current_version += 1
         return self._current_version
 
