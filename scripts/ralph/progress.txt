@@ -191,3 +191,49 @@ Typecheck passes (mypy strict mode).
 - Element role priority system helps filter most important elements for LLM context
 
 ---
+
+## Jan 26, 2026 - US-015 to US-018
+
+- src/browser_agent/core/llm.py (US-015):
+  - get_openrouter_client(): Returns OpenAI client configured for OpenRouter API
+  - OPENROUTER_API_KEY environment variable for authentication
+  - DEFAULT_MODEL: anthropic/claude-3.5-sonnet
+  - call_llm(): Function for LLM calls with temperature and max_tokens parameters
+  - Uses type: ignore[arg-type] for OpenAI SDK complex message types
+
+- src/browser_agent/agents/planner.py (US-016):
+  - PlannerAgent class for creating execution plans from user tasks
+  - create_plan(): Breaks down natural language task into step-by-step plan
+  - Maintains URL history for backtracking
+  - Uses LLM to generate numbered list of action steps
+  - Returns structured plan as list of step descriptions
+
+- src/browser_agent/agents/navigator.py (US-017):
+  - NavigatorAgent class for executing browser actions according to plan
+  - execute_step(): Executes single step from the plan
+  - Observes page before each action via browser_observe()
+  - Parses step description to determine action type (NAVIGATE, CLICK, TYPE, PRESS, SCROLL, WAIT, EXTRACT, DONE)
+  - Calls corresponding action tools with extracted parameters
+  - Returns ActionResult with success/failure status
+  - Tracks actions completed count
+
+- src/browser_agent/agents/safety.py (US-018):
+  - SafetyAgent class for confirming destructive actions
+  - CODE-LEVEL keyword matching for destructive patterns (delete, remove, spam, submit, payment, checkout, etc.)
+  - check_action_safe(): Returns "allow", "block", or "skip" based on pattern matching
+  - Destructive actions trigger rich-formatted confirmation prompt via rich console
+  - User responds with yes/no via console input
+  - Tracks statistics (blocked/allowed counts)
+  - Security enforced at code level, not LLM level
+
+- Updated agents/__init__.py to export all agent classes
+
+Typecheck passes (mypy strict mode).
+
+**Learnings for future iterations:**
+- Sub-agents follow pattern: Planner creates plan, Navigator executes actions, Safety confirms destructive actions
+- Use assert isinstance(result, ExpectedType) as type guard when mypy can't infer narrow types
+- Rich console formatting makes confirmation prompts clear and user-friendly
+- Pattern matching with predefined keywords is more reliable than LLM-based safety checks
+
+---
