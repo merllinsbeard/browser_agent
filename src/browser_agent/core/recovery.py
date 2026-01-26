@@ -4,6 +4,9 @@ This module provides recovery strategies for handling failures during
 browser automation, including overlay detection and dismissal.
 """
 
+import time
+from typing import Callable
+
 from playwright.sync_api import Page
 
 from browser_agent.models.element import InteractiveElement
@@ -193,3 +196,176 @@ def needs_reobservation(action_result: "ActionResult") -> bool:
 
     error_lower = error.lower() + " " + message.lower()
     return any(pattern in error_lower for pattern in reobserve_patterns)
+
+
+class RetryAttempt:
+    """Represents a single retry attempt with its strategy."""
+
+    def __init__(self, strategy: str, description: str) -> None:
+        """Initialize a retry attempt.
+
+        Args:
+            strategy: The strategy name (e.g., "reobserve", "wait", "variant").
+            description: Human-readable description of what was tried.
+        """
+        self.strategy = strategy
+        self.description = description
+
+    def __repr__(self) -> str:
+        return f"RetryAttempt({self.strategy}: {self.description})"
+
+
+class RetryResult:
+    """Result of a retry operation."""
+
+    def __init__(
+        self,
+        success: bool,
+        final_result: ActionResult,
+        attempts_made: list[RetryAttempt],
+        should_ask_user: bool = False,
+    ) -> None:
+        """Initialize a retry result.
+
+        Args:
+            success: True if any retry attempt succeeded.
+            final_result: The final ActionResult (success or last failure).
+            attempts_made: List of retry attempts that were tried.
+            should_ask_user: True if user should be asked for guidance.
+        """
+        self.success = success
+        self.final_result = final_result
+        self.attempts_made = attempts_made
+        self.should_ask_user = should_ask_user
+
+
+def retry_with_backoff(
+    page: Page,
+    initial_result: ActionResult,
+    action_func: Callable[[], ActionResult],
+    max_attempts: int = 3,
+    initial_backoff: float = 1.0,
+) -> RetryResult:
+    """Retry a failed action with exponential backoff and different strategies.
+
+    Never retries the exact same action twice - each attempt uses a different
+    recovery strategy (re-observation, wait, overlay dismissal).
+
+    Args:
+        page: The Playwright Page object.
+        initial_result: The result of the initial failed action.
+        action_func: Function that executes the action (takes no args).
+        max_attempts: Maximum number of retry attempts (default 3).
+        initial_backoff: Initial backoff time in seconds (default 1.0).
+
+    Returns:
+        RetryResult with success status, final ActionResult, and attempts made.
+    """
+    if initial_result.success:
+        return RetryResult(
+            success=True,
+            final_result=initial_result,
+            attempts_made=[],
+        )
+
+    attempts: list[RetryAttempt] = []
+    last_result = initial_result
+
+    for attempt_num in range(max_attempts):
+        # Calculate backoff time with exponential increase: 1s, 2s, 4s, ...
+        backoff = initial_backoff * (2**attempt_num)
+
+        # Choose a different strategy for each attempt
+        if attempt_num == 0:
+            # First retry: Re-observe and handle overlays
+            strategy = "reobserve_and_dismiss"
+            description = f"Re-observing page and checking for overlays (backoff: {backoff}s)"
+
+            # Wait before retrying
+            time.sleep(backoff)
+
+            # The re-observation should be done by the caller
+            # This retry attempt signals that re-observation is needed
+            attempt = RetryAttempt(strategy, description)
+            attempts.append(attempt)
+
+            # Signal caller to re-observe and retry
+            return RetryResult(
+                success=False,
+                final_result=last_result,
+                attempts_made=attempts,
+                should_ask_user=False,
+            )
+
+        elif attempt_num == 1:
+            # Second retry: Wait for network/selector stability
+            strategy = "wait_for_stability"
+            description = f"Waiting for network/selector stability (backoff: {backoff}s)"
+
+            time.sleep(backoff)
+
+            # Try waiting for load state
+            try:
+                page.wait_for_load_state("networkidle", timeout=5000)
+            except Exception:
+                pass  # Continue anyway
+
+            attempt = RetryAttempt(strategy, description)
+            attempts.append(attempt)
+
+            # Try the action again
+            try:
+                last_result = action_func()
+                if last_result.success:
+                    return RetryResult(
+                        success=True,
+                        final_result=last_result,
+                        attempts_made=attempts,
+                    )
+            except Exception as e:
+                last_result = ActionResult.failure_result(
+                    message=f"Retry attempt {attempt_num + 1} failed",
+                    error=str(e),
+                )
+
+        elif attempt_num == 2:
+            # Third retry: Wait longer and check for new overlays
+            strategy = "extended_wait_and_overlay_check"
+            description = f"Extended wait with overlay check (backoff: {backoff}s)"
+
+            time.sleep(backoff)
+
+            # Check for any new overlays that might have appeared
+            from browser_agent.tools.observe import browser_observe
+            from browser_agent.core.registry import ElementRegistry
+
+            registry = ElementRegistry()
+            try:
+                snapshot = browser_observe(page, registry)
+                overlays_found, overlay_msg = detect_and_handle_overlays(page, snapshot)
+                if overlays_found:
+                    description += f" - {overlay_msg}"
+
+                    # Try the action again after dismissing overlays
+                    last_result = action_func()
+                    if last_result.success:
+                        attempt = RetryAttempt(strategy, description)
+                        attempts.append(attempt)
+                        return RetryResult(
+                            success=True,
+                            final_result=last_result,
+                            attempts_made=attempts,
+                        )
+            except Exception:
+                pass
+
+            attempt = RetryAttempt(strategy, description)
+            attempts.append(attempt)
+
+    # All retries exhausted - ask user for guidance
+    return RetryResult(
+        success=False,
+        final_result=last_result,
+        attempts_made=attempts,
+        should_ask_user=True,
+    )

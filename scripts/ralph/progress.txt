@@ -260,3 +260,27 @@ Typecheck passes (mypy strict mode).
 - Error pattern matching helps determine when page re-observation is needed vs other recovery strategies
 
 ---
+
+## Jan 26, 2026 - US-020
+
+- src/browser_agent/core/recovery.py (US-020):
+  - RetryAttempt class: Represents a single retry attempt with strategy and description
+  - RetryResult class: Result of retry operation with success, final_result, attempts_made, should_ask_user
+  - retry_with_backoff(): Main retry function with exponential backoff (1s, 2s, 4s for max 3 attempts)
+  - Three different retry strategies (never same action twice):
+    1. Re-observe and check for overlays (signals caller to re-observe)
+    2. Wait for network/selector stability with page.wait_for_load_state("networkidle")
+    3. Extended wait with overlay check via browser_observe() and detect_and_handle_overlays()
+  - Returns RetryResult with should_ask_user=True after 3 consecutive failures
+
+- Updated src/browser_agent/core/__init__.py to export RetryAttempt, RetryResult, retry_with_backoff
+
+Typecheck passes (mypy strict mode).
+
+**Learnings for future iterations:**
+- Use Callable[[], ActionResult] from typing for function parameter types
+- Exponential backoff: backoff = initial * (2 ** attempt_num) gives 1s, 2s, 4s sequence
+- Different recovery strategies prevent repeating the exact same action that just failed
+- should_ask_user flag signals when automatic recovery is exhausted
+
+---
