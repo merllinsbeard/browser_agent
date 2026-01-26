@@ -6,6 +6,8 @@
 - src/ layout: src/browser_agent/ contains all package code
 - Playwright's `launch_persistent_context()` returns BrowserContext, not Browser - browser closes when context closes
 - Use `str(path)` when passing pathlib.Path to Playwright APIs (they expect str, not Path)
+- Use frozen dataclasses for immutable models (Action, PageSnapshot, ActionResult, InteractiveElement)
+- Action inherits from both str and Enum for JSON serialization compatibility
 
 # Ralph Progress Log
 Started: Mon Jan 26 22:00:52 MSK 2026
@@ -43,5 +45,26 @@ Started: Mon Jan 26 22:00:52 MSK 2026
 - The browser is automatically closed when the context is closed - no need to track browser separately
 - Chrome policies prevent automating the main user profile - always use a dedicated directory
 - Use `str(path)` when passing pathlib.Path to Playwright APIs
+
+---
+
+## Jan 26, 2026 - US-003
+- Created src/browser_agent/models/action.py:
+  - Action enum (str, Enum) with CLICK, TYPE, PRESS, SCROLL, NAVIGATE, WAIT, EXTRACT, DONE
+- Created src/browser_agent/models/element.py:
+  - BoundingBox dataclass (x, y, width, height)
+  - InteractiveElement dataclass with ref, role, name, aria_label, placeholder, value_preview, bbox
+- Created src/browser_agent/models/snapshot.py:
+  - PageSnapshot dataclass with url, title, interactive_elements, visible_text_excerpt, screenshot_path, notes, version
+  - with_version() helper for incrementing snapshot version
+- Created src/browser_agent/models/result.py:
+  - ActionResult dataclass with success, message, new_snapshot, error
+  - Static helpers: success_result() and failure_result()
+- Typecheck passes (mypy strict mode)
+
+**Learnings for future iterations:**
+- Use frozen dataclasses for immutable models (prevents accidental modification)
+- Action inherits from both str and Enum for JSON serialization and string comparison
+- field(default_factory=list) for mutable default arguments in dataclasses
 
 ---
