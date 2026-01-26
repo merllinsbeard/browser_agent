@@ -39,6 +39,30 @@ PROGRESS_FILE="$SCRIPT_DIR/progress.txt"
 ARCHIVE_DIR="$SCRIPT_DIR/archive"
 LAST_BRANCH_FILE="$SCRIPT_DIR/.last-branch"
 
+# Load environment variables from .env
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+if [ -f "$PROJECT_ROOT/.env" ]; then
+  set -a
+  source "$PROJECT_ROOT/.env"
+  set +a
+  echo "Loaded environment from $PROJECT_ROOT/.env"
+else
+  echo "Warning: .env file not found at $PROJECT_ROOT/.env"
+  echo "Please copy .env.example to .env and set ZAI_API_KEY"
+  exit 1
+fi
+
+# Verify ZAI_API_KEY is set
+if [ -z "$ZAI_API_KEY" ]; then
+  echo "Error: ZAI_API_KEY is not set in .env"
+  exit 1
+fi
+
+# Claude Code expects ANTHROPIC_API_KEY for x-api-key auth. Map from ZAI_API_KEY if needed.
+if [ -z "$ANTHROPIC_API_KEY" ]; then
+  ANTHROPIC_API_KEY="$ZAI_API_KEY"
+fi
+
 # Archive previous run if branch changed
 if [ -f "$PRD_FILE" ] && [ -f "$LAST_BRANCH_FILE" ]; then
   CURRENT_BRANCH=$(jq -r '.branchName // empty' "$PRD_FILE" 2>/dev/null || echo "")
@@ -92,7 +116,14 @@ for i in $(seq 1 $MAX_ITERATIONS); do
     OUTPUT=$(cat "$SCRIPT_DIR/prompt.md" | amp --dangerously-allow-all 2>&1 | tee /dev/stderr) || true
   else
     # Claude Code: use --dangerously-skip-permissions for autonomous operation, --print for output
-    OUTPUT=$(claude --dangerously-skip-permissions --print < "$SCRIPT_DIR/CLAUDE.md" 2>&1 | tee /dev/stderr) || true
+    OUTPUT=$(env \
+      ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL:-https://api.z.ai/api/anthropic}" \
+      ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+      ANTHROPIC_DEFAULT_OPUS_MODEL="${ANTHROPIC_DEFAULT_OPUS_MODEL:-glm-4.7}" \
+      ANTHROPIC_DEFAULT_SONNET_MODEL="${ANTHROPIC_DEFAULT_SONNET_MODEL:-glm-4.7}" \
+      ANTHROPIC_DEFAULT_HAIKU_MODEL="${ANTHROPIC_DEFAULT_HAIKU_MODEL:-glm-4.7}" \
+      API_TIMEOUT_MS="${API_TIMEOUT_MS:-3000000}" \
+      claude --dangerously-skip-permissions --print < "$SCRIPT_DIR/CLAUDE.md" 2>&1 | tee /dev/stderr) || true
   fi
   
   # Check for completion signal

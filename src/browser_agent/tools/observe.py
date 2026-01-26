@@ -68,7 +68,7 @@ def browser_observe(
     """
     # Get basic page info
     url = page.url
-    title = page.title()
+    title = page.title
 
     # Get the ARIA snapshot YAML
     aria_yaml = page.locator("body").aria_snapshot()

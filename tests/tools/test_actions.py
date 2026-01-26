@@ -91,7 +91,7 @@ def test_type_success(mock_page: MagicMock, mock_registry: MagicMock, mock_locat
 
     assert result.success is True
     assert "typed" in result.message.lower() or "fill" in result.message.lower()
-    mock_locator.fill.assert_called_once_with("test text")
+    mock_locator.fill.assert_called_once_with("test text", timeout=30000)
 
 
 def test_press_success(mock_page: MagicMock) -> None:

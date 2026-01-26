@@ -14,9 +14,14 @@ from browser_agent.tools.observe import browser_observe, _extract_interactive_el
 def mock_page():
     """Create a mock Playwright Page object."""
     page = MagicMock()
-    page.locator = MagicMock()
     page.url = "https://example.com"
     page.title = "Example Page"
+
+    # Create a proper mock for locator -> aria_snapshot chain
+    mock_body_locator = MagicMock()
+    mock_body_locator.aria_snapshot.return_value = ""  # Default empty
+    page.locator.return_value = mock_body_locator
+
     return page
 
 
@@ -102,10 +107,10 @@ def test_browser_observe_includes_screenshot_path(
     snapshot = browser_observe(
         mock_page,
         registry,
-        screenshot_path=screenshot_path,
+        screenshot_path=str(screenshot_path),
     )
 
-    assert snapshot.screenshot_path == screenshot_path
+    assert snapshot.screenshot_path == str(screenshot_path)
 
 
 def test_extract_interactive_elements_parses_yaml() -> None:
@@ -120,10 +125,11 @@ def test_extract_interactive_elements_parses_yaml() -> None:
     elements = _extract_interactive_elements(yaml, max_elements=10)
 
     assert len(elements) == 2
-    assert elements[0].role == "link"
-    assert elements[0].name == "Home"
-    assert elements[1].role == "button"
-    assert elements[1].name == "Click Me"
+    # Note: Elements are sorted by priority, so button comes before link
+    assert elements[0].role == "button"
+    assert elements[0].name == "Click Me"
+    assert elements[1].role == "link"
+    assert elements[1].name == "Home"
 
 
 def test_extract_interactive_elements_respects_max_elements() -> None:

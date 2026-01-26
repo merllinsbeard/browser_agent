@@ -250,20 +250,19 @@ class ContextTracker:
         if len(self._action_history) == 0:
             return ""
 
-        # Separate history into completed (older) and recent (newer) portions
+        # Determine how many actions to keep in detail
         recent_count = min(5, len(self._action_history))
-        completed_history = self._action_history[: -recent_count] if recent_count < len(self._action_history) else []
-        recent_history = self._action_history[-recent_count:] if recent_count > 0 else []
+        total_count = len(self._action_history)
 
-        # Generate summary
+        # Generate summary from ALL actions
         summary_parts = []
 
-        # Count actions by type
+        # Count actions by type across ALL history
         action_counts: dict[str, int] = {}
         successful_count = 0
         failed_count = 0
 
-        for entry in completed_history:
+        for entry in self._action_history:
             action = entry.get("action")
             if isinstance(action, str):
                 action_counts[action] = action_counts.get(action, 0) + 1
@@ -275,24 +274,23 @@ class ContextTracker:
                     failed_count += 1
 
         # Build summary
-        if completed_history:
-            summary_parts.append(f"Completed {len(completed_history)} actions:")
+        summary_parts.append(f"Completed {total_count} actions:")
 
-            # Add action breakdown
-            if action_counts:
-                action_summary = ", ".join(
-                    f"{count} {action.lower()}(s)"
-                    for action, count in sorted(action_counts.items())
-                )
-                summary_parts.append(f"  Actions: {action_summary}")
+        # Add action breakdown
+        if action_counts:
+            action_summary = ", ".join(
+                f"{count} {action.lower()}(s)"
+                for action, count in sorted(action_counts.items())
+            )
+            summary_parts.append(f"  Actions: {action_summary}")
 
-            # Add success rate
-            if successful_count > 0 or failed_count > 0:
-                total = successful_count + failed_count
-                rate = (successful_count / total * 100) if total > 0 else 0
-                summary_parts.append(
-                    f"  Success rate: {successful_count}/{total} ({rate:.0f}%)"
-                )
+        # Add success rate
+        if successful_count > 0 or failed_count > 0:
+            total = successful_count + failed_count
+            rate = (successful_count / total * 100) if total > 0 else 0
+            summary_parts.append(
+                f"  Success rate: {successful_count}/{total} ({rate:.0f}%)"
+            )
 
         # Add current state
         summary_parts.append("\nCurrent state:")
@@ -309,7 +307,8 @@ class ContextTracker:
         self._compressed_summary = "\n".join(summary_parts)
 
         # Keep only recent history in detail
-        self._action_history = recent_history
+        if recent_count < total_count:
+            self._action_history = self._action_history[-recent_count:]
 
         return self._compressed_summary
 

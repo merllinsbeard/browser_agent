@@ -30,8 +30,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: launch_persistent_context() with headful mode, session directory configurable, typecheck passes"
     },
     {
       "id": "US-003",
@@ -45,8 +45,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: All models created with frozen dataclasses, typecheck passes"
     },
     {
       "id": "US-004",
@@ -61,8 +61,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: ElementRegistry with version tracking, StaleElementError, typecheck passes"
     },
     {
       "id": "US-005",
@@ -75,8 +75,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: click() with timeout, stale element handling, typecheck passes"
     },
     {
       "id": "US-006",
@@ -89,8 +89,8 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: type_() with timeout, uses locator.fill(), typecheck passes"
     },
     {
       "id": "US-007",
@@ -103,8 +103,8 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: press() with page.keyboard.press(), supports key combinations, typecheck passes"
     },
     {
       "id": "US-008",
@@ -117,8 +117,8 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: scroll() with JavaScript window.scrollBy(), typecheck passes"
     },
     {
       "id": "US-009",
@@ -131,8 +131,8 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: navigate() with wait_until parameter, HTTP status handling, typecheck passes"
     },
     {
       "id": "US-010",
@@ -145,8 +145,8 @@
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: wait() with page.wait_for_timeout(), typecheck passes"
     },
     {
       "id": "US-011",
@@ -159,8 +159,8 @@
         "Typecheck passes"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: extract() handles title, url, text, links, inputs targets, typecheck passes"
     },
     {
       "id": "US-012",
@@ -173,8 +173,8 @@
         "Typecheck passes"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: done() returns success with completion summary, typecheck passes"
     },
     {
       "id": "US-013",
@@ -190,8 +190,8 @@
         "Typecheck passes"
       ],
       "priority": 13,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: browser_observe() with aria_snapshot parsing, element priority system, typecheck passes"
     },
     {
       "id": "US-014",
@@ -204,8 +204,8 @@
         "Typecheck passes"
       ],
       "priority": 14,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: capture_screenshot() with auto-naming, full_page support, typecheck passes"
     },
     {
       "id": "US-015",
@@ -219,8 +219,8 @@
         "Typecheck passes"
       ],
       "priority": 15,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: get_openrouter_client(), call_llm() with Anthropic Claude, typecheck passes"
     },
     {
       "id": "US-016",
@@ -235,8 +235,8 @@
         "Typecheck passes"
       ],
       "priority": 16,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: PlannerAgent with create_plan(), URL history tracking, typecheck passes"
     },
     {
       "id": "US-017",
@@ -251,8 +251,8 @@
         "Typecheck passes"
       ],
       "priority": 17,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: NavigatorAgent with execute_step(), action tool routing, typecheck passes"
     },
     {
       "id": "US-018",
@@ -268,8 +268,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 18,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: SafetyAgent with CODE-level keyword matching, rich confirmation prompts, typecheck passes"
     },
     {
       "id": "US-019",
@@ -283,8 +283,8 @@
         "Typecheck passes"
       ],
       "priority": 19,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: detect_and_handle_overlays() with 3-strategy dismissal, typecheck passes"
     },
     {
       "id": "US-020",
@@ -298,8 +298,8 @@
         "Typecheck passes"
       ],
       "priority": 20,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: retry_with_backoff() with exponential backoff, different strategies, typecheck passes"
     },
     {
       "id": "US-021",
@@ -312,8 +312,8 @@
         "Typecheck passes"
       ],
       "priority": 21,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: StuckDetector with 5 failure/10 no-progress threshold, URL loop detection, typecheck passes"
     },
     {
       "id": "US-022",
@@ -326,8 +326,8 @@
         "Typecheck passes"
       ],
       "priority": 22,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: ContextTracker with single-snapshot retention, action history, typecheck passes"
     },
     {
       "id": "US-023",
@@ -340,8 +340,8 @@
         "Typecheck passes"
       ],
       "priority": 23,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: compress_task_memory() with action counts, success rate, keeps 5 recent steps, typecheck passes"
     },
     {
       "id": "US-024",
@@ -355,8 +355,8 @@
         "Typecheck passes"
       ],
       "priority": 24,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: track_tokens() with 4 categories, 80% approaching_limit alert, LLM call limit, typecheck passes"
     },
     {
       "id": "US-025",
@@ -369,8 +369,8 @@
         "Typecheck passes"
       ],
       "priority": 25,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: hybrid_observe() wraps browser_observe(), auto-captures screenshots, typecheck passes"
     },
     {
       "id": "US-026",
@@ -384,8 +384,8 @@
         "Typecheck passes"
       ],
       "priority": 26,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: invoke_vision_model() with base64 encoding, GPT-4o Vision, <10 element trigger, typecheck passes"
     },
     {
       "id": "US-027",
@@ -399,8 +399,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 27,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: scripts/run.py with argparse, task input, browser launch, agent initialization, typecheck passes"
     },
     {
       "id": "US-028",
@@ -414,8 +414,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 28,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: display_step_progress(), display_confirmation_prompt(), rich Panel formatting, --auto-approve flag, typecheck passes"
     },
     {
       "id": "US-029",
@@ -429,8 +429,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 29,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: display_completion_report() with statistics, full agent orchestration loop, typecheck passes"
     },
     {
       "id": "US-030",
@@ -445,8 +445,8 @@
         "Typecheck passes"
       ],
       "priority": 30,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: scripts/eval.py with TaskResult/EvaluationMetrics dataclasses, color-coded success rate, typecheck passes"
     },
     {
       "id": "US-031",
@@ -461,8 +461,8 @@
         "Tests pass"
       ],
       "priority": 31,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: 6 observe tests, 13 action tests, 5 screenshot tests - all 24 passing, typecheck passes"
     },
     {
       "id": "US-032",
@@ -477,8 +477,8 @@
         "Tests pass"
       ],
       "priority": 32,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: 19 registry tests, 40 context tests - all 59 passing with comprehensive coverage, typecheck passes"
     },
     {
       "id": "US-033",

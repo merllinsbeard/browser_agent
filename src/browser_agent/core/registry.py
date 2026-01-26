@@ -99,13 +99,15 @@ class ElementRegistry:
         Returns:
             The new version number.
         """
-        self._current_version += 1
-        # Clear entries from old versions
+        # Clear entries from old versions (those not matching current version)
+        # Then increment the version - current entries will be marked as stale
+        # and will be rejected by get_locator/get_element
         self._entries = {
             ref: entry
             for ref, entry in self._entries.items()
             if entry.snapshot_version == self._current_version
         }
+        self._current_version += 1
         return self._current_version
 
     def register_elements(
@@ -131,12 +133,8 @@ class ElementRegistry:
                 "must have the same length"
             )
 
-        # Clear previous entries from current version
-        self._entries = {
-            ref: entry
-            for ref, entry in self._entries.items()
-            if entry.snapshot_version != self._current_version
-        }
+        # Clear ALL entries from current version before adding new ones
+        self._entries.clear()
 
         # Add new entries
         for i, (element, selector) in enumerate(zip(elements, selectors)):

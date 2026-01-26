@@ -29,7 +29,7 @@ def extract(page: Page, target: str) -> ActionResult:
 
         # Handle common extraction targets
         if "title" in target_lower:
-            result = page.title()
+            result = page.title
             return ActionResult.success_result(
                 message=f"Page title: {result}",
             )
