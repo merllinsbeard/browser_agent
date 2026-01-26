@@ -38,7 +38,7 @@ def run_demo(task: str, headless: bool = False, auto_approve: bool = False) -> i
     run_script = Path(__file__).parent / "run.py"
     cmd = [
         sys.executable,
-        str(run_script),
+        str(run_script.resolve()),  # Absolute path
         task,
         "--session-dir",
         str(Path.home() / ".browser-agent" / "demo-session"),
@@ -55,7 +55,11 @@ def run_demo(task: str, headless: bool = False, auto_approve: bool = False) -> i
     print(f"[dim]Auto-approve: {auto_approve}[/dim]")
     print()
 
-    result = subprocess.run(cmd, check=False)
+    # Run with proper environment
+    import os
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(Path(__file__).parent.parent / "src")
+    result = subprocess.run(cmd, env=env, check=False)
     return result.returncode
 
 
