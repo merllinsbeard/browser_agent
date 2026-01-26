@@ -190,8 +190,8 @@
         "Typecheck passes"
       ],
       "priority": 13,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: browser_observe() uses aria_snapshot() with element extraction and text truncation"
     },
     {
       "id": "US-014",
@@ -204,8 +204,8 @@
         "Typecheck passes"
       ],
       "priority": 14,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: capture_screenshot() with auto-naming and full_page support"
     },
     {
       "id": "US-015",

@@ -12,6 +12,7 @@
 - Element refs follow pattern "elem-{index}" for predictable identification
 - Some Playwright methods don't accept timeout (e.g., keyboard.press()) - check API docs
 - For string parameters with fixed options, use Literal type for type safety (e.g., navigate.wait_until)
+- Use `# type: ignore[import-untyped]` for libraries without type stubs (e.g., PyYAML)
 
 # Ralph Progress Log
 Started: Mon Jan 26 22:00:52 MSK 2026
@@ -159,5 +160,34 @@ Typecheck passes (mypy strict mode).
 - Some Playwright methods don't accept timeout (e.g., keyboard.press()) - check API docs
 - For string parameters with fixed options, use Literal type for type safety
 - Function name with trailing underscore (type_) to avoid shadowing built-in type
+
+---
+
+## Jan 26, 2026 - US-013 and US-014
+
+- src/browser_agent/tools/observe.py (US-013):
+  - browser_observe() function with typed arguments (page, registry, max_elements, max_text_length, screenshot_path)
+  - Uses Playwright page.locator("body").aria_snapshot() for compact page representation
+  - Parses YAML and extracts interactive elements by role priority (buttons, links, inputs first)
+  - Limits to max_elements (default 60) of most important elements
+  - Truncates visible text to max_text_length (default 3000) chars
+  - Registers elements with ElementRegistry for ID-based actions
+  - Returns PageSnapshot with url, title, interactive_elements, visible_text_excerpt, notes, version
+
+- src/browser_agent/tools/screenshot.py (US-014):
+  - capture_screenshot() function with typed arguments (page, output_path, full_page)
+  - Auto-generates timestamped filename (screenshot-{timestamp}.png) if output_path not provided
+  - Supports full_page parameter for viewport vs full-page capture
+  - Creates parent directories automatically
+  - Returns Path to saved screenshot
+
+- Updated tools/__init__.py to export browser_observe and capture_screenshot
+
+Typecheck passes (mypy strict mode).
+
+**Learnings for future iterations:**
+- Use `# type: ignore[import-untyped]` for libraries without type stubs (e.g., PyYAML)
+- Playwright's aria_snapshot() returns YAML that needs parsing
+- Element role priority system helps filter most important elements for LLM context
 
 ---
