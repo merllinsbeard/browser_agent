@@ -237,3 +237,26 @@ Typecheck passes (mypy strict mode).
 - Pattern matching with predefined keywords is more reliable than LLM-based safety checks
 
 ---
+
+## Jan 26, 2026 - US-019
+
+- src/browser_agent/core/recovery.py (US-019):
+  - detect_and_handle_overlays(): Main function for detecting and dismissing modal overlays
+  - Detects dialogs via role='dialog' and aria-modal attributes in interactive elements
+  - Three dismissal strategies attempted in order:
+    1. Close button (×, x, close) with aria-label pattern matching
+    2. Cancel/Close/No/Dismiss buttons via text search
+    3. Escape key press as fallback
+  - Returns tuple: (overlays_found, dismissal_result_message)
+  - needs_reobservation(): Helper to check if failed action requires page re-observation
+  - Pattern matching for error types: detached, timeout, not found, stale, unexpected
+
+- Updated src/browser_agent/core/__init__.py to export detect_and_handle_overlays and needs_reobservation
+
+Typecheck passes (mypy strict mode).
+
+**Learnings for future iterations:**
+- Overlay dismissal should try multiple strategies in order: targeted close button first, then generic cancel buttons, then keyboard shortcuts
+- Error pattern matching helps determine when page re-observation is needed vs other recovery strategies
+
+---

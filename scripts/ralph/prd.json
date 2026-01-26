@@ -30,8 +30,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Completed: launch_persistent_context() with user_data_dir, headful mode default, CLI args for --session-dir and --headless"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
@@ -45,8 +45,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Completed: Action enum, InteractiveElement, PageSnapshot, ActionResult models created with frozen dataclasses"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
@@ -61,8 +61,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Completed: ElementRegistry with ref ID assignment, version tracking, dynamic locator mapping, stale detection"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
@@ -75,8 +75,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "Completed: click() function in tools/actions/click.py with element ID resolution and error handling"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-006",
@@ -89,8 +89,8 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "Completed: type_() function for typing text into input elements by ref ID"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-007",
@@ -103,8 +103,8 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "Completed: press() function for keyboard key presses"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-008",
@@ -117,8 +117,8 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": "Completed: scroll() function for page scrolling with dx, dy"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-009",
@@ -131,8 +131,8 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": "Completed: navigate() function for URL navigation with HTTP status reporting"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-010",
@@ -145,8 +145,8 @@
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": true,
-      "notes": "Completed: wait() function for waiting specified timeout"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-011",
@@ -159,8 +159,8 @@
         "Typecheck passes"
       ],
       "priority": 11,
-      "passes": true,
-      "notes": "Completed: extract() function for data extraction from page"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-012",
@@ -173,8 +173,8 @@
         "Typecheck passes"
       ],
       "priority": 12,
-      "passes": true,
-      "notes": "Completed: done() function for signaling task completion"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-013",
@@ -190,8 +190,8 @@
         "Typecheck passes"
       ],
       "priority": 13,
-      "passes": true,
-      "notes": "Completed: browser_observe() uses aria_snapshot() with element extraction and text truncation"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-014",
@@ -204,8 +204,8 @@
         "Typecheck passes"
       ],
       "priority": 14,
-      "passes": true,
-      "notes": "Completed: capture_screenshot() with auto-naming and full_page support"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-015",
@@ -219,8 +219,8 @@
         "Typecheck passes"
       ],
       "priority": 15,
-      "passes": true,
-      "notes": "Completed: OpenRouter client with DEFAULT_MODEL, get_openrouter_client(), call_llm() function"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-016",
@@ -235,8 +235,8 @@
         "Typecheck passes"
       ],
       "priority": 16,
-      "passes": true,
-      "notes": "Completed: PlannerAgent with create_plan() using LLM, URL history tracking"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-017",
@@ -251,12 +251,12 @@
         "Typecheck passes"
       ],
       "priority": 17,
-      "passes": true,
-      "notes": "Completed: NavigatorAgent with execute_step() parsing steps and calling action tools"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-018",
-      "Title": "Safety sub-agent with confirmations",
+      "title": "Safety sub-agent with confirmations",
       "description": "As a user, I want the agent to ask confirmation before destructive actions.",
       "acceptanceCriteria": [
         "Create src/browser_agent/agents/safety.py with Safety agent class",
@@ -268,8 +268,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 18,
-      "passes": true,
-      "notes": "Completed: SafetyAgent with code-level destructive pattern detection and rich console confirmations"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-019",
@@ -283,8 +283,8 @@
         "Typecheck passes"
       ],
       "priority": 19,
-      "passes": true,
-      "notes": "Completed: detect_and_handle_overlays() with dialog/aria-modal detection, 3 dismissal strategies (close button, cancel button, Escape), needs_reobservation() helper"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-020",
