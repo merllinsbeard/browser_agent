@@ -399,8 +399,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 27,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: scripts/run.py with argparse, visible browser launch via launch_persistent_context(), task input via CLI arg or interactive prompt, agent component initialization (Planner, Navigator, Safety, ContextTracker, StuckDetector, ElementRegistry), Ctrl+C handling for graceful shutdown"
     },
     {
       "id": "US-028",

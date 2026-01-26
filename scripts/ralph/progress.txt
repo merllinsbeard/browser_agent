@@ -455,3 +455,39 @@ Typecheck passes (mypy strict mode).
 - Vision model default: openai/gpt-4o-2024-08-06 via OpenRouter
 
 ---
+
+## Jan 26, 2026 - US-027
+
+- scripts/run.py (US-027):
+  - argparse configuration for CLI arguments:
+    - task: Positional argument for task description (optional)
+    - --session-dir: Path to browser session directory (default: ~/.browser-agent/session)
+    - --headless: Flag for headless mode (default: visible browser)
+  - Task input handling:
+    - Via command line argument: uv run python scripts/run.py "search for python tutorials"
+    - Via interactive prompt: Rich console input when no task provided
+  - Browser launch:
+    - Creates session directory if not exists
+    - Launches persistent browser context via launch_persistent_context()
+    - Gets or creates page from context
+  - Agent component initialization:
+    - ElementRegistry for element tracking
+    - ContextTracker for token budget management
+    - StuckDetector for loop detection
+    - SafetyAgent for destructive action confirmations
+    - PlannerAgent for task planning
+    - NavigatorAgent for action execution
+  - Graceful shutdown: Ctrl+C handling with close message
+
+- Full orchestration (agent loop) left for upcoming user stories (US-028, US-029)
+
+Typecheck passes (mypy strict mode).
+
+**Learnings for future iterations:**
+- argparse with nargs="?" for optional positional arguments
+- Rich console for formatted output: Panel.fit(), console.input(), console.print()
+- Session directory creation: session_dir.mkdir(parents=True, exist_ok=True)
+- Context pages access: context.pages returns list of Page objects
+- Playwright context manager: with sync_playwright() as p
+
+---
