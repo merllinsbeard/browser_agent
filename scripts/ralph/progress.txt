@@ -10,6 +10,8 @@
 - Action inherits from both str and Enum for JSON serialization compatibility
 - Element registry uses snapshot versioning to prevent stale element references
 - Element refs follow pattern "elem-{index}" for predictable identification
+- Some Playwright methods don't accept timeout (e.g., keyboard.press()) - check API docs
+- For string parameters with fixed options, use Literal type for type safety (e.g., navigate.wait_until)
 
 # Ralph Progress Log
 Started: Mon Jan 26 22:00:52 MSK 2026
@@ -110,5 +112,52 @@ Started: Mon Jan 26 22:00:52 MSK 2026
 - Action tools should follow pattern: resolve element via registry, perform action, return ActionResult
 - Use PlaywrightTimeoutError alias to avoid confusion with built-in TimeoutError
 - Action tools should handle all exceptions and return failure_result with error details
+
+---
+
+## Jan 26, 2026 - US-006 through US-012
+Batch created all remaining action tools following established pattern:
+
+- src/browser_agent/tools/actions/type.py (US-006):
+  - type_() function for typing text into input elements by ref ID
+  - Uses locator.fill() for text entry
+  - Handles StaleElementError and PlaywrightTimeoutError
+
+- src/browser_agent/tools/actions/press.py (US-007):
+  - press() function for keyboard key presses
+  - Supports standard keys and combinations (e.g., Control+A)
+  - Note: page.keyboard.press() doesn't accept timeout parameter
+
+- src/browser_agent/tools/actions/scroll.py (US-008):
+  - scroll() function for page scrolling with dx, dy parameters
+  - Uses JavaScript window.scrollBy() for scrolling
+  - Reports scroll direction and distance in result message
+
+- src/browser_agent/tools/actions/navigate.py (US-009):
+  - navigate() function for URL navigation
+  - wait_until parameter with Literal type ("load", "domcontentloaded", "networkidle", "commit")
+  - Returns HTTP status in success message
+
+- src/browser_agent/tools/actions/wait.py (US-010):
+  - wait() function for waiting a specified timeout (ms)
+  - Uses page.wait_for_timeout()
+
+- src/browser_agent/tools/actions/extract.py (US-011):
+  - extract() function for data extraction from page
+  - Handles common targets: title, url, text, links, inputs
+  - Generic fallback returns page content (first 2000 chars)
+
+- src/browser_agent/tools/actions/done.py (US-012):
+  - done() function for signaling task completion
+  - Returns ActionResult with completion summary
+
+- Updated __init__.py to export all action tools
+
+Typecheck passes (mypy strict mode).
+
+**Learnings for future iterations:**
+- Some Playwright methods don't accept timeout (e.g., keyboard.press()) - check API docs
+- For string parameters with fixed options, use Literal type for type safety
+- Function name with trailing underscore (type_) to avoid shadowing built-in type
 
 ---

@@ -89,8 +89,8 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: type_() function for typing text into input elements by ref ID"
     },
     {
       "id": "US-007",
@@ -103,8 +103,8 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: press() function for keyboard key presses"
     },
     {
       "id": "US-008",
@@ -117,8 +117,8 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: scroll() function for page scrolling with dx, dy"
     },
     {
       "id": "US-009",
@@ -131,8 +131,8 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: navigate() function for URL navigation with HTTP status reporting"
     },
     {
       "id": "US-010",
@@ -145,8 +145,8 @@
         "Typecheck passes"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: wait() function for waiting specified timeout"
     },
     {
       "id": "US-011",
@@ -159,8 +159,8 @@
         "Typecheck passes"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: extract() function for data extraction from page"
     },
     {
       "id": "US-012",
@@ -173,8 +173,8 @@
         "Typecheck passes"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: done() function for signaling task completion"
     },
     {
       "id": "US-013",
