@@ -369,3 +369,164 @@ def retry_with_backoff(
         attempts_made=attempts,
         should_ask_user=True,
     )
+
+
+class StuckDetector:
+    """Detects when the agent is stuck in a loop without making progress.
+
+    Tracks consecutive actions without progress and determines when
+    user intervention is needed.
+    """
+
+    def __init__(self, stuck_threshold: int = 5) -> None:
+        """Initialize the stuck detector.
+
+        Args:
+            stuck_threshold: Number of actions without progress before considering stuck.
+                           Default is 5.
+        """
+        self._stuck_threshold = stuck_threshold
+        self._consecutive_failures: int = 0
+        self._url_history: list[str] = []
+        self._last_snapshot_version: int = 0
+        self._actions_since_progress: int = 0
+
+    def record_action(
+        self,
+        result: ActionResult,
+        current_url: str = "",
+        snapshot_version: int = 0,
+    ) -> None:
+        """Record an action result for stuck detection.
+
+        Args:
+            result: The ActionResult from the action.
+            current_url: The current page URL (for navigation tracking).
+            snapshot_version: The current page snapshot version.
+        """
+        if result.success:
+            # Check if we made actual progress
+            if self._is_progress(result, current_url, snapshot_version):
+                self._actions_since_progress = 0
+                self._consecutive_failures = 0
+            else:
+                self._actions_since_progress += 1
+        else:
+            self._consecutive_failures += 1
+            self._actions_since_progress += 1
+
+        # Update URL history
+        if current_url and current_url not in self._url_history:
+            self._url_history.append(current_url)
+
+        self._last_snapshot_version = snapshot_version
+
+    def _is_progress(
+        self,
+        result: ActionResult,
+        current_url: str,
+        snapshot_version: int,
+    ) -> bool:
+        """Check if this result represents meaningful progress.
+
+        Args:
+            result: The ActionResult from the action.
+            current_url: The current page URL.
+            snapshot_version: The current page snapshot version.
+
+        Returns:
+            True if meaningful progress was made.
+        """
+        # New snapshot version indicates page changed
+        if result.new_snapshot and result.new_snapshot.version > self._last_snapshot_version:
+            return True
+
+        # Navigation to a new URL is progress
+        if current_url and current_url not in self._url_history[-3:]:
+            return True
+
+        # DONE action is always progress
+        if "task completed" in (result.message or "").lower():
+            return True
+
+        return False
+
+    def is_stuck(self) -> bool:
+        """Check if the agent appears to be stuck.
+
+        Returns:
+            True if stuck threshold has been exceeded.
+        """
+        return (
+            self._consecutive_failures >= self._stuck_threshold
+            or self._actions_since_progress >= self._stuck_threshold * 2
+        )
+
+    def get_stuck_message(self) -> str:
+        """Get a message describing why the agent appears stuck.
+
+        Returns:
+            A human-readable message about the stuck state.
+        """
+        parts = []
+
+        if self._consecutive_failures >= self._stuck_threshold:
+            parts.append(
+                f"{self._consecutive_failures} consecutive failures"
+            )
+
+        if self._actions_since_progress >= self._stuck_threshold * 2:
+            parts.append(
+                f"{self._actions_since_progress} actions without meaningful progress"
+            )
+
+        if self._url_history:
+            if len(self._url_history) <= 3:
+                parts.append(
+                    f"only visited {len(self._url_history)} URL(s): {', '.join(self._url_history)}"
+                )
+            else:
+                parts.append(
+                    f"navigating between same {len(self._url_history)} URLs"
+                )
+
+        return "Agent appears stuck: " + ", ".join(parts) + "."
+
+    def reset(self) -> None:
+        """Reset the stuck detector state."""
+        self._consecutive_failures = 0
+        self._actions_since_progress = 0
+
+
+def detect_stuck(
+    consecutive_failures: int,
+    actions_without_progress: int,
+    stuck_threshold: int = 5,
+) -> tuple[bool, str]:
+    """Simple stuck detection function.
+
+    Args:
+        consecutive_failures: Number of consecutive failed actions.
+        actions_without_progress: Number of actions without meaningful progress.
+        stuck_threshold: Threshold for considering the agent stuck (default 5).
+
+    Returns:
+        A tuple of (is_stuck, message):
+        - is_stuck: True if stuck threshold exceeded
+        - message: Human-readable description of the stuck state
+    """
+    if consecutive_failures >= stuck_threshold:
+        return (
+            True,
+            f"Agent has {consecutive_failures} consecutive failures. "
+            f"This may indicate a login issue, 2FA requirement, or blocked action."
+        )
+
+    if actions_without_progress >= stuck_threshold * 2:
+        return (
+            True,
+            f"Agent has performed {actions_without_progress} actions without progress. "
+            f"An alternative approach or user guidance may be needed."
+        )
+
+    return False, ""

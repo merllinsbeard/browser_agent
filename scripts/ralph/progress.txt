@@ -284,3 +284,26 @@ Typecheck passes (mypy strict mode).
 - should_ask_user flag signals when automatic recovery is exhausted
 
 ---
+
+## Jan 26, 2026 - US-021
+
+- src/browser_agent/core/recovery.py (US-021):
+  - StuckDetector class: Tracks consecutive actions without progress
+  - record_action(): Records action results with URL and snapshot version tracking
+  - _is_progress(): Determines if action made meaningful progress (new snapshot, new URL, DONE action)
+  - is_stuck(): Returns True when consecutive_failures >= 5 or actions_without_progress >= 10
+  - get_stuck_message(): Returns human-readable message with failure counts, URL history, login/2FA hints
+  - reset(): Clears stuck state for fresh start
+  - detect_stuck(): Simple functional API for stuck detection with (is_stuck, message) tuple return
+
+- Updated src/browser_agent/core/__init__.py to export StuckDetector and detect_stuck
+
+Typecheck passes (mypy strict mode).
+
+**Learnings for future iterations:**
+- Progress detection: new snapshot version > old version, new URL not in recent history, DONE action
+- Stuck threshold: 5 consecutive failures OR 10 actions without progress (more lenient for no-progress case)
+- URL history tracking helps detect URL loops (same 3 URLs repeatedly)
+- reset() method allows clearing stuck state after user intervention
+
+---

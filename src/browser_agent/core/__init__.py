@@ -6,7 +6,9 @@ from browser_agent.core.registry import ElementRegistry, StaleElementError
 from browser_agent.core.recovery import (
     RetryAttempt,
     RetryResult,
+    StuckDetector,
     detect_and_handle_overlays,
+    detect_stuck,
     needs_reobservation,
     retry_with_backoff,
 )
@@ -23,4 +25,6 @@ __all__ = [
     "retry_with_backoff",
     "RetryAttempt",
     "RetryResult",
+    "StuckDetector",
+    "detect_stuck",
 ]
