@@ -14,7 +14,12 @@ class ContextTracker:
     is kept in context, with older snapshots being discarded.
     """
 
-    def __init__(self, max_history_length: int = 50, compression_interval: int = 10) -> None:
+    def __init__(
+        self,
+        max_history_length: int = 50,
+        compression_interval: int = 10,
+        llm_call_limit: int = 30,
+    ) -> None:
         """Initialize the context tracker.
 
         Args:
@@ -22,14 +27,23 @@ class ContextTracker:
                                Default is 50.
             compression_interval: Compress history after this many steps.
                                  Default is 10.
+            llm_call_limit: Alert when approaching this many LLM calls.
+                            Default is 30.
         """
         self._max_history_length = max_history_length
         self._compression_interval = compression_interval
+        self._llm_call_limit = llm_call_limit
         self._current_snapshot: PageSnapshot | None = None
         self._action_history: list[dict[str, str | bool]] = []
         self._total_llm_calls: int = 0
         self._total_tokens_used: int = 0
         self._compressed_summary: str = ""
+        self._tokens_by_category: dict[str, int] = {
+            "snapshot": 0,
+            "history": 0,
+            "tools": 0,
+            "other": 0,
+        }
 
     def update_snapshot(self, snapshot: PageSnapshot) -> PageSnapshot | None:
         """Update the current snapshot, discarding the old one.
@@ -97,14 +111,66 @@ class ContextTracker:
         history = self.get_action_history()
         return history[:count]
 
-    def record_llm_call(self, tokens_used: int = 0) -> None:
+    def record_llm_call(
+        self,
+        tokens_used: int = 0,
+        category: str = "other",
+    ) -> None:
         """Record an LLM call for token tracking.
 
         Args:
             tokens_used: Estimated tokens used in this call.
+            category: Token category (snapshot, history, tools, other).
+                      Default is "other".
         """
         self._total_llm_calls += 1
         self._total_tokens_used += tokens_used
+
+        # Track by category
+        if category in self._tokens_by_category:
+            self._tokens_by_category[category] += tokens_used
+        else:
+            self._tokens_by_category["other"] += tokens_used
+
+    def track_tokens(
+        self,
+        category: str,
+        tokens: int,
+    ) -> None:
+        """Track token usage by category.
+
+        Args:
+            category: Token category (snapshot, history, tools, other).
+            tokens: Number of tokens to add to the category.
+        """
+        if category in self._tokens_by_category:
+            self._tokens_by_category[category] += tokens
+        else:
+            self._tokens_by_category["other"] += tokens
+
+    def get_tokens_by_category(self) -> dict[str, int]:
+        """Get token usage breakdown by category.
+
+        Returns:
+            Dictionary with token counts per category.
+        """
+        return self._tokens_by_category.copy()
+
+    def approaching_limit(self) -> bool:
+        """Check if approaching LLM call limit.
+
+        Returns:
+            True if at 80% of the LLM call limit.
+        """
+        return self._total_llm_calls >= int(self._llm_call_limit * 0.8)
+
+    def get_llm_call_limit(self) -> int:
+        """Get the LLM call limit.
+
+        Returns:
+            The configured LLM call limit.
+        """
+        return self._llm_call_limit
 
     def get_llm_call_count(self) -> int:
         """Get the total number of LLM calls made.
@@ -130,7 +196,12 @@ class ContextTracker:
         """
         return {
             "llm_calls": self._total_llm_calls,
+            "llm_limit": self._llm_call_limit,
             "total_tokens": self._total_tokens_used,
+            "tokens_snapshot": self._tokens_by_category.get("snapshot", 0),
+            "tokens_history": self._tokens_by_category.get("history", 0),
+            "tokens_tools": self._tokens_by_category.get("tools", 0),
+            "tokens_other": self._tokens_by_category.get("other", 0),
             "history_entries": len(self._action_history),
             "has_snapshot": self._current_snapshot is not None,
             "snapshot_version": (
@@ -138,6 +209,7 @@ class ContextTracker:
                 if self._current_snapshot
                 else 0
             ),
+            "approaching_limit": self.approaching_limit(),
         }
 
     def reset(self) -> None:
@@ -147,6 +219,8 @@ class ContextTracker:
         self._total_llm_calls = 0
         self._total_tokens_used = 0
         self._compressed_summary = ""
+        for key in self._tokens_by_category:
+            self._tokens_by_category[key] = 0
 
     def should_compress(self) -> bool:
         """Check if task memory should be compressed.

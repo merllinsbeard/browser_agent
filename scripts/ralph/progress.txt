@@ -374,3 +374,36 @@ Typecheck passes (mypy strict mode).
 - Success rate calculation: (successful / (successful + failed)) * 100
 
 ---
+
+## Jan 26, 2026 - US-024
+
+- src/browser_agent/core/context.py (US-024):
+  - Added llm_call_limit parameter to __init__ (default 30 calls)
+  - Added _tokens_by_category dict with keys: snapshot, history, tools, other
+  - Updated record_llm_call() with category parameter (default "other")
+  - track_tokens(category, tokens): Track token usage by category
+  - get_tokens_by_category(): Returns copy of token category dict
+  - approaching_limit(): Returns True when >= 80% of LLM call limit (24/30)
+  - get_llm_call_limit(): Returns configured limit
+  - Enhanced get_context_summary() with:
+    - llm_limit field
+    - tokens_snapshot, tokens_history, tokens_tools, tokens_other breakdown
+    - approaching_limit boolean
+  - Updated reset() to clear all token categories to 0
+
+- Token categories:
+  - snapshot: Tokens from page observations (PageSnapshot data)
+  - history: Tokens from action history
+  - tools: Tokens from tool usage
+  - other: Uncategorized tokens
+
+- 80% threshold for "approaching limit" gives advance warning before hitting hard limit
+
+Typecheck passes (mypy strict mode).
+
+**Learnings for future iterations:**
+- 80% threshold (0.8 * limit) provides advance warning before exhausting budget
+- Category tracking helps identify which parts of the system consume most tokens
+- get_context_summary() enhanced with all relevant metrics for monitoring
+
+---
