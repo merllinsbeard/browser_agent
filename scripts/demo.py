@@ -34,10 +34,11 @@ def run_demo(task: str, headless: bool = False, auto_approve: bool = False) -> i
     Returns:
         Exit code from the agent run.
     """
+    # Build command to run run.py directly
+    run_script = Path(__file__).parent / "run.py"
     cmd = [
         sys.executable,
-        "-m",
-        "browser_agent.cli",
+        str(run_script),
         task,
         "--session-dir",
         str(Path.home() / ".browser-agent" / "demo-session"),
