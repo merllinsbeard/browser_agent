@@ -491,3 +491,52 @@ Typecheck passes (mypy strict mode).
 - Playwright context manager: with sync_playwright() as p
 
 ---
+
+## Jan 26, 2026 - US-028 and US-029
+
+- scripts/run.py (US-028 - Progress Display and Confirmations):
+  - display_step_progress(): Shows "Step X/Y: action" with optional details
+  - display_confirmation_prompt(): Red Panel with DESTRUCTIVE ACTION warning:
+    - Shows action and target element description
+    - "This action may be irreversible" warning
+    - Yes/no prompt for user confirmation
+  - Rich components used:
+    - Panel with border_style="red" for destructive action warnings
+    - Table for execution plan display with numbered steps
+    - console.status() with spinner for browser launch
+  - Destructive action patterns: delete, remove, spam, submit, payment, checkout
+  - --auto-approve flag to skip all confirmations
+
+- scripts/run.py (US-029 - Completion Report):
+  - display_completion_report(): Green Panel with "Task Complete!" title:
+    - Total steps executed
+    - Successful steps (green)
+    - Failed steps (red)
+    - Final message with task summary
+  - Agent loop improvements:
+    - Generates plan via planner.create_plan()
+    - Displays plan summary in Rich Table
+    - Executes each step with progress display
+    - Checks for destructive actions before execution
+    - Tracks successful/failed step counts
+    - Checks for stuck condition via StuckDetector
+    - Displays completion report with statistics
+
+- Full agent orchestration implemented:
+  - Plan creation via PlannerAgent
+  - Step-by-step execution via NavigatorAgent
+  - Destructive action confirmations
+  - Stuck detection and early termination
+  - Progress display and completion report
+
+Typecheck passes (mypy strict mode).
+
+**Learnings for future iterations:**
+- Rich Table: table.add_column() and table.add_row() for tabular data
+- console.status() context manager for loading spinners
+- Panel border_style options: "red", "green", "yellow", etc.
+- Check for destructive patterns with any() and generator expression
+- Early termination from loop with break when stuck detected
+- --auto-approve flag useful for automated testing
+
+---
