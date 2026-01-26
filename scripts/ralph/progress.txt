@@ -540,3 +540,38 @@ Typecheck passes (mypy strict mode).
 - --auto-approve flag useful for automated testing
 
 ---
+
+## Jan 26, 2026 - US-030
+
+- scripts/eval.py (US-030 - Evaluation Script):
+  - TaskResult dataclass: Result of single test task with metrics
+    - task_name, task_description, success, steps_executed
+    - steps_succeeded, steps_failed, user_inputs_required
+    - was_stuck, error_message, duration_seconds
+  - EvaluationMetrics dataclass: Aggregated metrics
+    - Totals: tasks, successful, failed, steps, user_inputs, stuck, duration
+    - Computed: get_success_rate(), get_avg_steps(), get_avg_user_inputs()
+  - TEST_TASKS: Predefined test tasks (Simple Navigation, Search Query, Form Fill)
+  - run_single_task(): Runs one task, tracks metrics via PlannerAgent/NavigatorAgent
+  - run_evaluation(): Runs all tasks, aggregates metrics
+  - display_metrics(): Rich Table with color-coded success rate
+  - CLI args: --headless (default), --visible flag, --tasks N
+
+- Metrics tracked:
+  - Success rate (percentage with color coding: >=80% green, >=50% yellow, <50% red)
+  - Average steps per task
+  - Total steps (successful/failed)
+  - User inputs required (destructive actions)
+  - Stuck situations detected
+  - Duration (total and per-task)
+
+Typecheck passes (mypy strict mode).
+
+**Learnings for future iterations:**
+- dataclass with field() default values for optional fields
+- Console.status() context manager for progress spinners
+- Rich conditional styling: f"[{style}]text[/]"
+- Success rate color coding helps identify performance issues at a glance
+- Separate eval-session directory prevents conflicts with main session
+
+---
