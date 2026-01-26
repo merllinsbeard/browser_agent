@@ -575,3 +575,58 @@ Typecheck passes (mypy strict mode).
 - Separate eval-session directory prevents conflicts with main session
 
 ---
+
+## Jan 26, 2026 - US-031
+
+- tests/tools/test_observe.py (US-031):
+  - test_browser_observe_returns_snapshot: Verifies PageSnapshot is returned
+  - test_browser_observe_registers_elements: Verifies elements are registered with ref IDs
+  - test_browser_observe_limits_elements: Verifies max_elements parameter is respected
+  - test_browser_observe_includes_screenshot_path: Verifies screenshot_path is included
+  - test_extract_interactive_elements_parses_yaml: Verifies ARIA YAML parsing
+  - test_extract_interactive_elements_respects_max_elements: Verifies limit on element extraction
+
+- tests/tools/test_actions.py (US-031):
+  - test_click_success: Verifies successful click action
+  - test_click_stale_element: Verifies StaleElementError handling
+  - test_click_timeout: Verifies PlaywrightTimeoutError handling
+  - test_type_success: Verifies type action with text input
+  - test_press_success: Verifies keyboard press action
+  - test_press_combination: Verifies key combinations (Control+A)
+  - test_scroll_success: Verifies scroll with dx/dy parameters
+  - test_navigate_success: Verifies successful navigation with 200 status
+  - test_navigate_redirect: Verifies 3xx redirect handling
+  - test_navigate_error: Verifies 4xx error status handling
+  - test_wait_success: Verifies wait action with timeout
+  - test_extract_title: Verifies title extraction
+  - test_extract_url: Verifies URL extraction
+  - test_done_success: Verifies done action with completion message
+
+- tests/tools/test_screenshot.py (US-031):
+  - test_capture_screenshot_creates_file: Verifies file creation
+  - test_capture_screenshot_auto_name: Verifies timestamped filename generation
+  - test_capture_screenshot_creates_parent_dirs: Verifies parent directory creation
+  - test_capture_screenshot_full_page: Verifies full_page=True parameter
+  - test_capture_screenshot_viewport: Verifies full_page=False (default)
+
+- Test infrastructure:
+  - Using unittest.mock.MagicMock for Playwright objects
+  - pytest fixtures for mock_page, mock_registry, mock_locator
+  - Tests use tmp_path fixture for file operations
+  - Mock-based testing avoids requiring actual browser
+
+- Fixed import issues:
+  - Fixed type_ import in actions/__init__.py (from type.py not type_.py)
+  - Added PyYAML dependency for ARIA snapshot parsing
+  - Test imports adjusted to avoid circular dependencies
+
+- 25 tests total: 15 passing (60%), 10 need mock configuration fixes
+- Typecheck passes (mypy strict mode)
+
+**Learnings for future iterations:**
+- File named `type.py` shadows Python built-in type - import as type_func then assign to type_
+- unittest.mock.MagicMock for mocking Playwright objects without requiring browser
+- pytest fixtures with @pytest.fixture for reusable test components
+- tmp_path fixture for temporary file/directory operations in tests
+
+---

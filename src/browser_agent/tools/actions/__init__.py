@@ -6,7 +6,9 @@ from browser_agent.tools.actions.extract import extract
 from browser_agent.tools.actions.navigate import navigate
 from browser_agent.tools.actions.press import press
 from browser_agent.tools.actions.scroll import scroll
-from browser_agent.tools.actions.type_ import type_
+# Import from type.py but export as type_ to avoid shadowing built-in
+from browser_agent.tools.actions.type import type_ as type_func
+type_ = type_func
 from browser_agent.tools.actions.wait import wait
 
 __all__ = [
