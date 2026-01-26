@@ -1,0 +1,47 @@
+## Codebase Patterns
+- Use `uv run` for all Python commands (e.g., `uv run mypy src/`, `uv run pytest`)
+- Project uses strict mypy settings (disallow_untyped_defs = true) - all functions must be typed
+- pyproject.toml uses hatchling as build backend
+- Use dependency-groups for dev dependencies (uv >=0.5.0)
+- src/ layout: src/browser_agent/ contains all package code
+- Playwright's `launch_persistent_context()` returns BrowserContext, not Browser - browser closes when context closes
+- Use `str(path)` when passing pathlib.Path to Playwright APIs (they expect str, not Path)
+
+# Ralph Progress Log
+Started: Mon Jan 26 22:00:52 MSK 2026
+---
+
+## Jan 26, 2026 - US-001
+- Created src/browser_agent directory with subdirectories: agents/, tools/, core/, models/, security/
+- Created scripts/run.py and scripts/eval.py entry points
+- Created tests/ directory
+- Created pyproject.toml with uv, dependencies: playwright, openai-agents, pydantic, rich, pytest
+- Set up basic CLI entry point at src/browser_agent/cli.py
+- Typecheck passes with mypy
+
+**Learnings for future iterations:**
+- The pyproject.toml [project] section should NOT include `readme = "README.md"` if README.md doesn't exist - this causes build failures
+- Use [dependency-groups] instead of deprecated [tool.uv.dev-dependencies] for uv >=0.5.0
+- Run `uv run mypy src/` to verify type checking - it will auto-install dependencies and build the package
+
+---
+
+## Jan 26, 2026 - US-002
+- Created src/browser_agent/core/browser.py with launch_persistent_context()
+  - Takes Playwright instance and user_data_dir for session persistence
+  - headless parameter defaults to False for visible (headful) browser
+  - Returns BrowserContext (not Browser) - browser auto-closes when context closes
+  - Includes detailed docstring with usage example and warnings
+- Updated src/browser_agent/cli.py with argparse configuration:
+  - --session-dir argument with default to ~/.browser-agent/session
+  - --headless flag to optionally run in headless mode
+  - Added test browser launch with Ctrl+C handling for graceful shutdown
+- Typecheck passes (mypy strict mode)
+
+**Learnings for future iterations:**
+- Playwright's `launch_persistent_context()` returns BrowserContext directly, not (Browser, Context) tuple
+- The browser is automatically closed when the context is closed - no need to track browser separately
+- Chrome policies prevent automating the main user profile - always use a dedicated directory
+- Use `str(path)` when passing pathlib.Path to Playwright APIs
+
+---
