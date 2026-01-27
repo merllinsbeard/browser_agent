@@ -14,7 +14,6 @@ from browser_agent.agents import PlannerAgent, NavigatorAgent, SafetyAgent
 from browser_agent.core import (
     ContextTracker,
     ElementRegistry,
-    StuckDetector,
     launch_persistent_context,
 )
 from rich.console import Console
@@ -171,7 +170,6 @@ def main() -> None:
             # Initialize agent components
             registry = ElementRegistry()
             context_tracker = ContextTracker()
-            stuck_detector = StuckDetector()
             safety_agent = SafetyAgent()
 
             # Create planner and navigator
@@ -235,15 +233,7 @@ def main() -> None:
                     action_type=step_description.split()[0] if step_description.split() else "unknown",
                     success=result.success,
                 )
-                stuck_detector.record_action(
-                    result,
-                    current_url=page.url if hasattr(page, "url") else "",
-                )
-
-                if stuck_detector.is_stuck():
-                    console.print("\n[yellow]Agent appears stuck.[/yellow]")
-                    console.print(stuck_detector.get_stuck_message())
-                    break
+                # TODO: stuck detection will be replaced by SDK ReAct loop (US-011)
 
             # Display completion report
             display_completion_report(
