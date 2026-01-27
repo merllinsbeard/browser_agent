@@ -1,548 +1,255 @@
 {
   "project": "Browser Agent",
-  "branchName": "ralph/autonomous-browser-ai-agent",
-  "description": "Autonomous AI agent that controls a visible web browser to perform arbitrary multi-step tasks based on natural language input. Uses hierarchical sub-agent architecture (Planner + Navigator + Safety) with element registry pattern and OpenAI Agents SDK.",
+  "branchName": "ralph/react-agent-sdk-rewrite",
+  "description": "Rewrite browser agent from linear plan executor to true ReAct agent using OpenAI Agents SDK. Replace custom FOR-loop with SDK Runner.run() ReAct loop, fix broken ARIA parsing, replace CSS nth-of-type with get_by_role locators, implement Planner→Navigator handoff, convert to async Playwright, replace dataclasses with Pydantic.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Project setup and directory structure",
-      "description": "As a developer, I need the project structure and dependencies set up.",
+      "title": "Remove old test suite and dead code",
+      "description": "As a developer, I want to remove the old test suite and unused modules so subsequent stories can rewrite code without failing tests blocking commits.",
       "acceptanceCriteria": [
-        "Create src/browser_agent directory with subdirectories: agents/, tools/, core/, models/, security/",
-        "Create scripts/ directory for run.py and eval.py",
-        "Create tests/ directory",
-        "Initialize pyproject.toml with uv and dependencies: playwright, openai-agents, pydantic, rich, pytest",
-        "Typecheck passes"
+        "Delete entire tests/ directory",
+        "Delete src/browser_agent/core/recovery.py (605 lines of dead code — never called from run.py)",
+        "Delete src/browser_agent/tools/hybrid_observe.py (vision fallback not wired in)",
+        "Delete src/browser_agent/security/ directory (empty)",
+        "Update src/browser_agent/core/__init__.py: remove all recovery.py imports (RetryAttempt, RetryResult, StuckDetector, detect_and_handle_overlays, detect_stuck, needs_reobservation, retry_with_backoff) and their __all__ entries",
+        "Update scripts/run.py: remove StuckDetector import and all stuck_detector usage (lines 16, 186, 263-271) — replace with pass or simple comment placeholder. Do NOT rewrite run.py fully (that's US-011)",
+        "Run: uv run python -c \"import browser_agent\" — must succeed without ImportError",
+        "Typecheck passes: uv run mypy src/"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Completed: All directories created, pyproject.toml with dependencies, typecheck passes"
+      "notes": "Completed: Deleted tests/, recovery.py, hybrid_observe.py, security/. Removed recovery imports from core/__init__.py. Removed StuckDetector from run.py. Also fixed tools/__init__.py hybrid_observe imports. Import and mypy pass."
     },
     {
       "id": "US-002",
-      "title": "Persistent browser context setup",
-      "description": "As a user, I want the agent to preserve my login session.",
+      "title": "Pydantic models",
+      "description": "As a developer, I want data models using Pydantic BaseModel so we get automatic validation, JSON serialization, and SDK-compatible structured output.",
       "acceptanceCriteria": [
-        "Create src/browser_agent/core/browser.py with launch_persistent_context()",
-        "Browser launches with user_data_dir for session persistence",
-        "Browser launches in headful mode (visible window)",
-        "Session directory configurable via CLI argument",
-        "Typecheck passes"
+        "Rewrite src/browser_agent/models/element.py: replace @dataclass(frozen=True) with Pydantic BaseModel + model_config = ConfigDict(frozen=True)",
+        "BoundingBox: fields x: float, y: float, width: float, height: float with @field_validator for non-negative width/height",
+        "InteractiveElement: fields ref: str, role: str, name: str = '' (name is NOT required — many ARIA elements have empty names), aria_label: str | None = None, placeholder: str | None = None, value_preview: str | None = None, bbox: BoundingBox | None = None",
+        "Rewrite src/browser_agent/models/snapshot.py: PageSnapshot as Pydantic BaseModel with model_config = ConfigDict(frozen=True). Fields: url: str, title: str, interactive_elements: list[InteractiveElement] = [], visible_text_excerpt: str = '', screenshot_path: str | None = None, notes: list[str] = [], version: int = 0",
+        "Rewrite src/browser_agent/models/result.py: SuccessResult and FailureResult as Pydantic BaseModel with model_config = ConfigDict(frozen=True). Keep success and error as properties. Keep success_result() and failure_result() factory functions. Remove updated_plan field from SuccessResult (SDK handles replanning natively)",
+        "Update src/browser_agent/models/__init__.py to export all new models",
+        "Run: uv run python -c \"from browser_agent.models import InteractiveElement, PageSnapshot, SuccessResult, FailureResult\" succeeds",
+        "Typecheck passes: uv run mypy src/"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Completed: launch_persistent_context() with headful mode, session directory configurable, typecheck passes"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Pydantic models for Action, PageSnapshot, ActionResult",
-      "description": "As a developer, I need type-safe data structures for the agent.",
+      "title": "Fix ARIA snapshot parser",
+      "description": "As the agent, I need working page observation so I can see interactive elements. The current parser is fundamentally broken — it expects dict nodes with a 'role' key, but Playwright's aria_snapshot() returns YAML where the role IS the dict key (e.g., button \"Submit\" is a key, not {\"role\": \"button\", \"name\": \"Submit\"}).",
       "acceptanceCriteria": [
-        "Create src/browser_agent/models/action.py with Action enum (CLICK, TYPE, PRESS, SCROLL, NAVIGATE, WAIT, EXTRACT, DONE)",
-        "Create src/browser_agent/models/snapshot.py with PageSnapshot: url, title, interactive_elements, visible_text_excerpt, screenshot_path, notes, version",
-        "Create src/browser_agent/models/result.py with ActionResult: success, message, new_snapshot",
-        "Create src/browser_agent/models/element.py with InteractiveElement: ref, role, name, aria_label, placeholder, value_preview, bbox",
-        "Typecheck passes"
+        "Rewrite _traverse_aria_tree() in src/browser_agent/tools/observe.py to handle the actual Playwright ARIA snapshot format",
+        "After yaml.safe_load(), the parsed structure contains: (a) string items in lists like 'heading \"Example Domain\" [level=1]', (b) dict items where keys are like 'link \"Learn more\"' or 'paragraph' and values are content or children",
+        "Use regex r'^(\\w+)(?:\\s+\"(.*)\")?(?:\\s+\\[(.+)\\])?$' to parse role, name, attributes from both string items and dict keys",
+        "_traverse_aria_tree recursively walks the parsed YAML: for each string item or dict key, extract (role, name) using the regex. If role is in _ROLE_PRIORITY, add to elements list. For dict values that are lists, recurse into children",
+        "Skip keys starting with / (metadata like /url)",
+        "Skip the text role (not interactive)",
+        "Verified: browser_observe() on https://example.com returns at least 1 element (the 'More information...' link). Test with: uv run python -c \"from playwright.sync_api import sync_playwright; from browser_agent.tools.observe import browser_observe; from browser_agent.core.registry import ElementRegistry; p = sync_playwright().start(); b = p.chromium.launch(); page = b.new_page(); page.goto('https://example.com'); r = ElementRegistry(); s = browser_observe(page, r); print(f'Found {len(s.interactive_elements)} elements'); [print(f'  {e.ref}: [{e.role}] {e.name!r}') for e in s.interactive_elements]; b.close(); p.stop()\"",
+        "Typecheck passes: uv run mypy src/"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Completed: All models created with frozen dataclasses, typecheck passes"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Element Registry class for ID-based actions",
-      "description": "As the agent, I want to reference elements by ID rather than selectors.",
+      "title": "Element Registry with get_by_role locators",
+      "description": "As the agent, I need correct element locators. The current CSS [role=X]:nth-of-type(N) strategy is wrong — CSS nth-of-type works on HTML tag type, not role attribute, causing wrong elements to be clicked.",
       "acceptanceCriteria": [
-        "Create src/browser_agent/core/registry.py with ElementRegistry class",
-        "ElementRegistry assigns unique ref IDs during observation",
-        "Each snapshot has version number for element validation",
-        "Registry maps ref ID to Playwright locator dynamically",
-        "Stale element references detected and rejected with clear error",
-        "Typecheck passes"
+        "Change RegistryEntry in src/browser_agent/core/registry.py to store role: str, name: str, nth: int instead of selector: str. Use Pydantic BaseModel (consistent with US-002)",
+        "Change register_elements() to accept elements: list[InteractiveElement] only (no selectors param). Internally, group elements by (role, name) tuple to compute nth index for disambiguation",
+        "Change get_locator() to build locator as: page.get_by_role(entry.role, name=entry.name).nth(entry.nth) if name is non-empty, or page.locator(f'[role={entry.role}]').nth(entry.nth) if name is empty",
+        "Update ObservationResult to Pydantic BaseModel",
+        "Update src/browser_agent/tools/observe.py: call registry.register_elements(elements) without selectors",
+        "Remove the role_index_map / selectors logic from observe.py (lines 82-88)",
+        "Verified: after browser_observe() on https://example.com, registry.get_locator(page, 'elem-0') returns a valid Locator that can be clicked without error",
+        "Typecheck passes: uv run mypy src/"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Completed: ElementRegistry with version tracking, StaleElementError, typecheck passes"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
-      "title": "CLICK action tool",
-      "description": "As the agent, I need to click elements by ref ID.",
+      "title": "Async browser context",
+      "description": "As the system, I need async Playwright support because the OpenAI Agents SDK is fully async (Runner.run() is a coroutine), and all @function_tool functions must be async.",
       "acceptanceCriteria": [
-        "Create src/browser_agent/tools/actions/click.py",
-        "Function accepts element_id (ref ID) and executes click via Playwright",
-        "Returns ActionResult with success status and message",
-        "Typecheck passes"
+        "Add launch_persistent_context_async() function to src/browser_agent/core/browser.py that uses playwright.async_api (async_playwright, async BrowserContext)",
+        "Keep the existing sync launch_persistent_context() for backwards compatibility",
+        "The async function has the same signature and behavior as the sync version",
+        "Update src/browser_agent/core/__init__.py to also export launch_persistent_context_async",
+        "Verified: uv run python -c \"import asyncio; from playwright.async_api import async_playwright; from browser_agent.core.browser import launch_persistent_context_async; asyncio.run(launch_persistent_context_async(async_playwright().start(), '/tmp/test-session'))\" — launches and closes without error",
+        "Typecheck passes: uv run mypy src/"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "Completed: click() with timeout, stale element handling, typecheck passes"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-006",
-      "title": "TYPE action tool",
-      "description": "As the agent, I need to type text into input elements.",
+      "title": "OpenRouter async client for SDK",
+      "description": "As the system, I need the OpenAI Agents SDK configured to use OpenRouter (OpenAI-compatible API) so agents can make LLM calls through Runner.run().",
       "acceptanceCriteria": [
-        "Create src/browser_agent/tools/actions/type.py",
-        "Function accepts element_id and text, fills input via Playwright",
-        "Returns ActionResult with success status and message",
-        "Typecheck passes"
+        "Update src/browser_agent/core/llm.py: add function setup_openrouter_for_sdk() that calls set_default_openai_client() from agents package with an AsyncOpenAI client configured for OpenRouter (base_url='https://openrouter.ai/api/v1', api_key from OPENROUTER_API_KEY env var)",
+        "Import: from openai import AsyncOpenAI and from agents import set_default_openai_client",
+        "Keep existing sync call_llm() and get_openrouter_client() for now (will be removed when old code is fully replaced)",
+        "Add DEFAULT_SDK_MODEL constant — set to 'google/gemini-2.5-flash-preview-05-20' (current best flash model on OpenRouter)",
+        "Update src/browser_agent/core/__init__.py to export setup_openrouter_for_sdk and DEFAULT_SDK_MODEL",
+        "Verified: uv run python -c \"from browser_agent.core.llm import setup_openrouter_for_sdk; setup_openrouter_for_sdk(); print('SDK client configured')\" succeeds (requires OPENROUTER_API_KEY set)",
+        "Typecheck passes: uv run mypy src/"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "Completed: type_() with timeout, uses locator.fill(), typecheck passes"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-007",
-      "title": "PRESS action tool",
-      "description": "As the agent, I need to press keyboard keys.",
+      "title": "Browser tools as @function_tool",
+      "description": "As the SDK agent, I need browser actions exposed as @function_tool decorated async functions so the LLM can call them through the ReAct loop.",
       "acceptanceCriteria": [
-        "Create src/browser_agent/tools/actions/press.py",
-        "Function accepts key name (Enter, Escape, etc.) via Playwright",
-        "Returns ActionResult with success status and message",
-        "Typecheck passes"
+        "Create src/browser_agent/tools/browser_tools.py with a factory function create_browser_tools(page, registry) -> list that returns a list of @function_tool decorated async functions",
+        "Import from agents import function_tool",
+        "The factory uses closures so each tool captures page (async Playwright Page) and registry (ElementRegistry)",
+        "Tool: browser_observe() -> str — calls observe logic, returns formatted string: 'Page: {title}\\nURL: {url}\\n\\nInteractive Elements:\\n- elem-0: [{role}] \"{name}\"\\n...' with up to 60 elements and 3000 chars visible text",
+        "Tool: browser_click(element_id: str) -> str — clicks element, returns success/failure. Catches StaleElementError and KeyError with helpful messages",
+        "Tool: browser_type(element_id: str, text: str) -> str — types text into element, returns success/failure",
+        "Tool: browser_press(key: str) -> str — presses keyboard key, returns success/failure",
+        "Tool: browser_scroll(direction: str) -> str — scrolls page. direction is 'up' or 'down' (scroll by 500px). Returns success/failure",
+        "Tool: browser_navigate(url: str) -> str — navigates to URL, returns success/failure. After successful navigate, increments registry version",
+        "Tool: browser_wait(seconds: int) -> str — waits specified seconds (max 10), returns message",
+        "Tool: browser_extract(target: str) -> str — extracts data from page (title, url, text, links, inputs), returns extracted data",
+        "Tool: browser_done(summary: str) -> str — signals task completion, returns the summary (this becomes the agent's final output)",
+        "Each tool has a clear docstring (the LLM sees these to decide which tool to call)",
+        "All tools use await for async Playwright operations (e.g., await page.goto(url), await locator.click())",
+        "Update src/browser_agent/tools/__init__.py to export create_browser_tools",
+        "Verified: uv run python -c \"from browser_agent.tools.browser_tools import create_browser_tools; print('Factory imported')\" succeeds",
+        "Typecheck passes: uv run mypy src/"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "Completed: press() with page.keyboard.press(), supports key combinations, typecheck passes"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-008",
-      "title": "SCROLL action tool",
-      "description": "As the agent, I need to scroll the page.",
+      "title": "Navigator Agent using SDK",
+      "description": "As the system, I need a Navigator agent built with the OpenAI Agents SDK that executes browser actions using the ReAct loop — the SDK automatically calls the LLM, which decides which tool to use, executes it, sees the result, and decides the next action.",
       "acceptanceCriteria": [
-        "Create src/browser_agent/tools/actions/scroll.py",
-        "Function accepts dx, dy parameters and scrolls via Playwright",
-        "Returns ActionResult with success status and message",
-        "Typecheck passes"
+        "Rewrite src/browser_agent/agents/navigator.py: delete the old NavigatorAgent class entirely",
+        "Create function create_navigator_agent(browser_tools: list) -> Agent that returns an SDK Agent instance",
+        "Import from agents import Agent",
+        "Agent configured with: name='Browser Navigator', instructions (detailed system prompt for ReAct behavior), tools=browser_tools, model=DEFAULT_SDK_MODEL",
+        "System prompt explains: (1) you control a browser via tools, (2) ALWAYS call browser_observe() first, (3) use element IDs from observation, (4) re-observe on failure, (5) never repeat same failed action, (6) call browser_done() when complete, (7) explain if stuck after 3 failures",
+        "Update src/browser_agent/agents/__init__.py to export create_navigator_agent",
+        "Verified: uv run python -c \"from browser_agent.agents import create_navigator_agent; print('Navigator factory imported')\" succeeds",
+        "Typecheck passes: uv run mypy src/"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": "Completed: scroll() with JavaScript window.scrollBy(), typecheck passes"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-009",
-      "title": "NAVIGATE action tool",
-      "description": "As the agent, I need to navigate to URLs.",
+      "title": "Planner Agent with handoff to Navigator",
+      "description": "As the system, I need a Planner agent that receives the user's task, creates a high-level plan, and hands off execution to the Navigator agent.",
       "acceptanceCriteria": [
-        "Create src/browser_agent/tools/actions/navigate.py",
-        "Function accepts URL and navigates via Playwright",
-        "Returns ActionResult with success status and message",
-        "Typecheck passes"
+        "Rewrite src/browser_agent/agents/planner.py: delete the old PlannerAgent class entirely",
+        "Create function create_planner_agent(navigator_agent: Agent) -> Agent that returns an SDK Agent with a handoff to Navigator",
+        "Import from agents import Agent",
+        "Planner Agent configured with: name='Task Planner', instructions (system prompt for planning), handoffs=[navigator_agent], model=DEFAULT_SDK_MODEL",
+        "System prompt explains: (1) receive browser automation task, (2) break into 3-10 high-level steps, (3) plan is general — NO specific element IDs, (4) hand off to Browser Navigator after planning",
+        "Remove old SafetyAgent class from safety.py",
+        "Update src/browser_agent/agents/__init__.py: remove SafetyAgent export, add create_planner_agent and create_navigator_agent",
+        "Verified: uv run python -c \"from browser_agent.agents import create_navigator_agent, create_planner_agent; print('Both agent factories imported')\" succeeds",
+        "Typecheck passes: uv run mypy src/"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": "Completed: navigate() with wait_until parameter, HTTP status handling, typecheck passes"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-010",
-      "title": "WAIT action tool",
-      "description": "As the agent, I need to wait for conditions or timeouts.",
+      "title": "Safety checks in browser tools",
+      "description": "As a user, I want the agent to confirm before destructive actions. Safety is enforced at CODE level (keyword matching in the tool functions), not LLM level — the LLM cannot bypass it.",
       "acceptanceCriteria": [
-        "Create src/browser_agent/tools/actions/wait.py",
-        "Function accepts timeout or condition and waits via Playwright",
-        "Returns ActionResult with success status and message",
-        "Typecheck passes"
+        "Create src/browser_agent/tools/safety.py with function is_destructive_action(action_description: str) -> bool that checks for destructive keywords: delete, remove, spam, submit, payment, checkout, confirm, purchase, buy, order",
+        "Create async function ask_user_confirmation(action_description: str) -> bool that prints action description to console (using rich) and prompts yes/no",
+        "Integrate into browser_click and browser_type tools in browser_tools.py: before executing, check is_destructive_action(f'{element.role} {element.name}'). If destructive, call ask_user_confirmation(). If declined, return 'Action blocked by user'",
+        "The safety check is synchronous keyword matching (no LLM call) — deterministic and unbypassable",
+        "Delete src/browser_agent/agents/safety.py (old SafetyAgent class) if not already deleted in US-009",
+        "Verified: uv run python -c \"from browser_agent.tools.safety import is_destructive_action; print(is_destructive_action('delete account')); print(is_destructive_action('click search'))\" prints True then False",
+        "Typecheck passes: uv run mypy src/"
       ],
       "priority": 10,
-      "passes": true,
-      "notes": "Completed: wait() with page.wait_for_timeout(), typecheck passes"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-011",
-      "title": "EXTRACT action tool",
-      "description": "As the agent, I need to extract data from the page.",
+      "title": "Async run.py with Runner.run()",
+      "description": "As a user, I want the main CLI script to use the SDK's Runner.run() for true ReAct execution — the agent reasons on every step, adapts to failures, and completes tasks autonomously.",
       "acceptanceCriteria": [
-        "Create src/browser_agent/tools/actions/extract.py",
-        "Function accepts target description and extracts data via Playwright",
-        "Returns ActionResult with extracted data",
-        "Typecheck passes"
+        "Rewrite scripts/run.py as fully async: async def main() with asyncio.run(main()) at bottom",
+        "Use async_playwright() context manager and launch_persistent_context_async() for browser setup",
+        "Call setup_openrouter_for_sdk() to configure the SDK client",
+        "Create browser tools: tools = create_browser_tools(page, registry)",
+        "Create agents: navigator = create_navigator_agent(tools) then planner = create_planner_agent(navigator)",
+        "Run: result = await Runner.run(planner, task, max_turns=30). Import from agents import Runner",
+        "Keep existing CLI argument parsing (argparse): task, --session-dir, --headless, --auto-approve, --clean-cache",
+        "Keep Rich console output for welcome banner, task display, and completion",
+        "After Runner.run() completes, print result.final_output as the completion report",
+        "Handle MaxTurnsExceeded exception — print warning that agent reached turn limit",
+        "Keep browser open after completion (same Ctrl+C behavior as current)",
+        "Delete src/browser_agent/core/context.py (ContextTracker) — SDK manages context natively",
+        "Update src/browser_agent/core/__init__.py: remove ContextTracker export and import",
+        "Clean up old imports from run.py: remove PlannerAgent, NavigatorAgent, SafetyAgent, StuckDetector, ContextTracker",
+        "Verified: uv run python scripts/run.py --help shows usage without errors",
+        "Typecheck passes: uv run mypy src/ scripts/"
       ],
       "priority": 11,
-      "passes": true,
-      "notes": "Completed: extract() handles title, url, text, links, inputs targets, typecheck passes"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-012",
-      "title": "DONE action tool",
-      "description": "As the agent, I need to signal task completion.",
+      "title": "New test suite",
+      "description": "As a developer, I want tests for the new architecture to ensure reliability and catch regressions.",
       "acceptanceCriteria": [
-        "Create src/browser_agent/tools/actions/done.py",
-        "Function accepts summary and signals completion",
-        "Returns ActionResult with final summary",
-        "Typecheck passes"
+        "Create tests/ directory with __init__.py and conftest.py",
+        "tests/models/test_element.py: test InteractiveElement creation, optional name (empty string allowed), BoundingBox validation (negative width/height rejected), frozen immutability",
+        "tests/models/test_snapshot.py: test PageSnapshot creation, default values, frozen immutability",
+        "tests/models/test_result.py: test SuccessResult/FailureResult properties, factory functions",
+        "tests/tools/test_observe.py: test _traverse_aria_tree with real ARIA snapshot samples. Include test data strings matching actual Playwright output format. Verify correct element count, role extraction, name extraction",
+        "tests/tools/test_safety.py: test is_destructive_action with destructive and non-destructive inputs",
+        "tests/core/test_registry.py: test ElementRegistry: register_elements, get_locator with mock Page, version tracking, StaleElementError on version mismatch",
+        "All tests use pytest and pytest-asyncio where needed",
+        "uv run pytest tests/ -v — all tests pass",
+        "Typecheck passes: uv run mypy src/ tests/"
       ],
       "priority": 12,
-      "passes": true,
-      "notes": "Completed: done() returns success with completion summary, typecheck passes"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-013",
-      "title": "Page observation tool (browser_observe)",
-      "description": "As the agent, I need to observe page state without full DOM dumps.",
+      "title": "End-to-end demo verification",
+      "description": "As a stakeholder, I want a working demo proving the ReAct architecture works — the agent observes, reasons, acts, and recovers from failures on a real browser task.",
       "acceptanceCriteria": [
-        "Create src/browser_agent/tools/observe.py with browser_observe() function",
-        "Uses Playwright aria_snapshot() for compact, semantic page representation",
-        "Returns PageSnapshot with url, title, interactive_elements (40-80 max)",
-        "Each element has ref ID, role, name, aria_label, placeholder, value_preview",
-        "Visible text excerpt truncated to 2-4K characters",
-        "No full HTML/DOM included",
-        "Typecheck passes"
+        "Run: uv run python scripts/run.py \"go to example.com and tell me what the page title is\" — agent completes the task",
+        "Verify the agent's execution log shows the ReAct loop: (1) Planner creates plan, (2) handoff to Navigator, (3) Navigator calls browser_observe, (4) Navigator calls browser_navigate, (5) Navigator calls browser_observe again, (6) Navigator calls browser_extract or browser_done",
+        "The agent uses at least 2 different tools in sequence (not just navigate + done)",
+        "If an action fails, the agent re-observes and tries a different approach (visible in execution log)",
+        "Update scripts/demo.py to use the new async architecture (same pattern as run.py)",
+        "Typecheck passes: uv run mypy src/ scripts/"
       ],
       "priority": 13,
-      "passes": true,
-      "notes": "Completed: browser_observe() with aria_snapshot parsing, element priority system, typecheck passes"
-    },
-    {
-      "id": "US-014",
-      "title": "Screenshot capture tool",
-      "description": "As the agent, I need to capture screenshots for fallback analysis.",
-      "acceptanceCriteria": [
-        "Create src/browser_agent/tools/screenshot.py with capture_screenshot() function",
-        "Captures screenshot via Playwright and saves to disk",
-        "Returns file path",
-        "Typecheck passes"
-      ],
-      "priority": 14,
-      "passes": true,
-      "notes": "Completed: capture_screenshot() with auto-naming, full_page support, typecheck passes"
-    },
-    {
-      "id": "US-015",
-      "title": "OpenRouter LLM integration",
-      "description": "As the system, I want to use OpenRouter API for LLM calls.",
-      "acceptanceCriteria": [
-        "Create src/browser_agent/core/llm.py with OpenRouter client setup",
-        "API key configured via OPENROUTER_API_KEY environment variable",
-        "Default model: GPT-4o or equivalent via OpenRouter",
-        "Proper error handling and retry logic included",
-        "Typecheck passes"
-      ],
-      "priority": 15,
-      "passes": true,
-      "notes": "Completed: get_openrouter_client(), call_llm() with Anthropic Claude, typecheck passes"
-    },
-    {
-      "id": "US-016",
-      "title": "Planner sub-agent",
-      "description": "As the system, I want a Planner agent to break tasks into steps.",
-      "acceptanceCriteria": [
-        "Create src/browser_agent/agents/planner.py with Planner agent class",
-        "Uses OpenAI Agents SDK Agent with handoff to Navigator",
-        "Receives user task and creates step-by-step execution plan",
-        "Plan stored in task memory for reference",
-        "Maintains URL history for backtracking",
-        "Typecheck passes"
-      ],
-      "priority": 16,
-      "passes": true,
-      "notes": "Completed: PlannerAgent with create_plan(), URL history tracking, typecheck passes"
-    },
-    {
-      "id": "US-017",
-      "title": "Navigator sub-agent",
-      "description": "As the system, I want a Navigator agent to execute browser actions.",
-      "acceptanceCriteria": [
-        "Create src/browser_agent/agents/navigator.py with Navigator agent class",
-        "Uses OpenAI Agents SDK Agent with browser_observe and browser_act tools",
-        "Receives plan steps and executes sequentially",
-        "Calls browser_observe() before each action",
-        "Returns to Planner on completion or failure",
-        "Typecheck passes"
-      ],
-      "priority": 17,
-      "passes": true,
-      "notes": "Completed: NavigatorAgent with execute_step(), action tool routing, typecheck passes"
-    },
-    {
-      "id": "US-018",
-      "title": "Safety sub-agent with confirmations",
-      "description": "As a user, I want the agent to ask confirmation before destructive actions.",
-      "acceptanceCriteria": [
-        "Create src/browser_agent/agents/safety.py with Safety agent class",
-        "Intercepts actions matching destructive patterns (delete, submit, payment)",
-        "Destructive actions trigger user.confirm() with clear action summary",
-        "Waits for yes/no response before proceeding",
-        "Security enforced at CODE level via keyword matching, not LLM level",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 18,
-      "passes": true,
-      "notes": "Completed: SafetyAgent with CODE-level keyword matching, rich confirmation prompts, typecheck passes"
-    },
-    {
-      "id": "US-019",
-      "title": "Error recovery: re-observation and overlay detection",
-      "description": "As the agent, I want to recover from failures by re-observing the page.",
-      "acceptanceCriteria": [
-        "Create src/browser_agent/core/recovery.py with detect_and_handle_overlays()",
-        "Failed actions trigger re-observation via browser_observe()",
-        "Detects popups/overlays via role='dialog' and aria-modal attributes",
-        "Attempts dismissal of detected overlays",
-        "Typecheck passes"
-      ],
-      "priority": 19,
-      "passes": true,
-      "notes": "Completed: detect_and_handle_overlays() with 3-strategy dismissal, typecheck passes"
-    },
-    {
-      "id": "US-020",
-      "title": "Error recovery: retry logic with backoff",
-      "description": "As the agent, I want to retry failed actions with different approaches.",
-      "acceptanceCriteria": [
-        "Add retry_with_backoff() to src/browser_agent/core/recovery.py",
-        "Waits for network/selector with exponential backoff (max 3 attempts)",
-        "Never retries the exact same action twice",
-        "After 3 consecutive failures, asks user for guidance",
-        "Typecheck passes"
-      ],
-      "priority": 20,
-      "passes": true,
-      "notes": "Completed: retry_with_backoff() with exponential backoff, different strategies, typecheck passes"
-    },
-    {
-      "id": "US-021",
-      "title": "Error recovery: stuck detection",
-      "description": "As the agent, I want to detect when I'm stuck and take action.",
-      "acceptanceCriteria": [
-        "Add detect_stuck() to src/browser_agent/core/recovery.py",
-        "Stuck detection triggers after 5 actions with no progress",
-        "When stuck, asks user if login/2FA needed or should try alternative approach",
-        "Typecheck passes"
-      ],
-      "priority": 21,
-      "passes": true,
-      "notes": "Completed: StuckDetector with 5 failure/10 no-progress threshold, URL loop detection, typecheck passes"
-    },
-    {
-      "id": "US-022",
-      "title": "Context budget: single-snapshot retention",
-      "description": "As the system, I want to limit context to prevent token bloat.",
-      "acceptanceCriteria": [
-        "Create src/browser_agent/core/context.py with ContextTracker class",
-        "Implements single-snapshot retention (only most recent in context)",
-        "Old snapshots discarded from context after new observation",
-        "Typecheck passes"
-      ],
-      "priority": 22,
-      "passes": true,
-      "notes": "Completed: ContextTracker with single-snapshot retention, action history, typecheck passes"
-    },
-    {
-      "id": "US-023",
-      "title": "Context budget: task memory compression",
-      "description": "As the system, I want to compress task history to save tokens.",
-      "acceptanceCriteria": [
-        "Add compress_task_memory() to src/browser_agent/core/context.py",
-        "Task memory compressed after each 10 steps (summarize older steps)",
-        "Summary format: completed steps + current state",
-        "Typecheck passes"
-      ],
-      "priority": 23,
-      "passes": true,
-      "notes": "Completed: compress_task_memory() with action counts, success rate, keeps 5 recent steps, typecheck passes"
-    },
-    {
-      "id": "US-024",
-      "title": "Context budget: token usage tracking",
-      "description": "As the system, I want to monitor token usage.",
-      "acceptanceCriteria": [
-        "Add track_tokens() to src/browser_agent/core/context.py",
-        "Monitors token usage per category (snapshot, history, tools)",
-        "Alerts when approaching token limit",
-        "Target: <30 LLM calls per task",
-        "Typecheck passes"
-      ],
-      "priority": 24,
-      "passes": true,
-      "notes": "Completed: track_tokens() with 4 categories, 80% approaching_limit alert, LLM call limit, typecheck passes"
-    },
-    {
-      "id": "US-025",
-      "title": "Hybrid observation: screenshot fallback",
-      "description": "As the agent, I want screenshots as fallback when accessibility tree is insufficient.",
-      "acceptanceCriteria": [
-        "Create src/browser_agent/tools/hybrid_observe.py",
-        "Screenshot captured on each observe() via capture_screenshot()",
-        "Screenshot path included in PageSnapshot for analysis",
-        "Typecheck passes"
-      ],
-      "priority": 25,
-      "passes": true,
-      "notes": "Completed: hybrid_observe() wraps browser_observe(), auto-captures screenshots, typecheck passes"
-    },
-    {
-      "id": "US-026",
-      "title": "Hybrid observation: vision model integration",
-      "description": "As the agent, I want to use vision when accessibility tree has limited elements.",
-      "acceptanceCriteria": [
-        "Add invoke_vision_model() to src/browser_agent/tools/hybrid_observe.py",
-        "Vision model invoked when ARIA snapshot has <10 interactive elements",
-        "Uses GPT-4o Vision via OpenRouter API",
-        "Returns element descriptions from screenshot",
-        "Typecheck passes"
-      ],
-      "priority": 26,
-      "passes": true,
-      "notes": "Completed: invoke_vision_model() with base64 encoding, GPT-4o Vision, <10 element trigger, typecheck passes"
-    },
-    {
-      "id": "US-027",
-      "title": "CLI interface: basic run script",
-      "description": "As a user, I want a CLI script to launch the agent.",
-      "acceptanceCriteria": [
-        "Create scripts/run.py",
-        "Launches agent with visible browser",
-        "Accepts task input via command line argument or interactive prompt",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 27,
-      "passes": true,
-      "notes": "Completed: scripts/run.py with argparse, task input, browser launch, agent initialization, typecheck passes"
-    },
-    {
-      "id": "US-028",
-      "title": "CLI interface: progress display and confirmations",
-      "description": "As a user, I want to see real-time progress and confirm actions.",
-      "acceptanceCriteria": [
-        "Add progress display to scripts/run.py using rich library",
-        "Shows current step, action being taken",
-        "Handles confirmation prompts for destructive actions",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 28,
-      "passes": true,
-      "notes": "Completed: display_step_progress(), display_confirmation_prompt(), rich Panel formatting, --auto-approve flag, typecheck passes"
-    },
-    {
-      "id": "US-029",
-      "title": "CLI interface: completion report",
-      "description": "As a user, I want a summary report when the task is done.",
-      "acceptanceCriteria": [
-        "Add completion report to scripts/run.py",
-        "Displays actions taken and outcomes (success/failure/next steps)",
-        "Uses rich for formatted output",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 29,
-      "passes": true,
-      "notes": "Completed: display_completion_report() with statistics, full agent orchestration loop, typecheck passes"
-    },
-    {
-      "id": "US-030",
-      "title": "Evaluation script",
-      "description": "As a developer, I want a script to evaluate agent performance.",
-      "acceptanceCriteria": [
-        "Create scripts/eval.py",
-        "Runs predefined test tasks",
-        "Measures success rate, step count, user input count, stuck situations",
-        "Outputs report with metrics",
-        "Can run against multiple test scenarios",
-        "Typecheck passes"
-      ],
-      "priority": 30,
-      "passes": true,
-      "notes": "Completed: scripts/eval.py with TaskResult/EvaluationMetrics dataclasses, color-coded success rate, typecheck passes"
-    },
-    {
-      "id": "US-031",
-      "title": "Unit tests: browser tools",
-      "description": "As a developer, I want tests for browser tools.",
-      "acceptanceCriteria": [
-        "Create tests/tools/test_observe.py for browser_observe()",
-        "Create tests/tools/test_actions.py for all action tools",
-        "Create tests/tools/test_screenshot.py for capture_screenshot()",
-        "Tests use mocked Playwright page objects",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 31,
-      "passes": true,
-      "notes": "Completed: 6 observe tests, 13 action tests, 5 screenshot tests - all 24 passing, typecheck passes"
-    },
-    {
-      "id": "US-032",
-      "title": "Unit tests: ElementRegistry and ContextTracker",
-      "description": "As a developer, I want tests for core classes.",
-      "acceptanceCriteria": [
-        "Create tests/core/test_registry.py for ElementRegistry",
-        "Tests ID assignment, versioning, stale detection",
-        "Create tests/core/test_context.py for ContextTracker",
-        "Tests budget management, compression, token tracking",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 32,
-      "passes": true,
-      "notes": "Completed: 19 registry tests, 40 context tests - all 59 passing with comprehensive coverage, typecheck passes"
-    },
-    {
-      "id": "US-033",
-      "title": "Integration tests: agent handoffs and error recovery",
-      "description": "As a developer, I want tests for agent orchestration.",
-      "acceptanceCriteria": [
-        "Create tests/integration/test_agents.py",
-        "Tests Planner -> Navigator handoff",
-        "Tests Navigator action execution and return to Planner",
-        "Tests error recovery flows (re-observation, retry, stuck detection)",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 33,
-      "passes": true,
-      "notes": "Completed: 29 integration tests covering agent handoffs, re-observation, retry logic, stuck detection, overlay dismissal - all passing, typecheck passes"
-    },
-    {
-      "id": "US-034",
-      "title": "Integration tests: safety logic",
-      "description": "As a developer, I want tests for safety confirmations.",
-      "acceptanceCriteria": [
-        "Create tests/integration/test_safety.py",
-        "Tests destructive pattern detection (delete, submit, payment)",
-        "Tests confirmation prompt triggering",
-        "Tests code-level enforcement (not LLM bypass)",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 34,
-      "passes": true,
-      "notes": "Completed: 46 integration tests for SafetyAgent covering destructive pattern detection (delete, remove, spam, submit, payment, checkout, confirm, purchase, buy, order), confirmation prompts (yes/no/cancel/invalid/keyboard interrupt), code-level enforcement, statistics tracking, and standalone functionality. 3 xfail tests for Navigator integration (not yet implemented). Typecheck passes."
-    },
-    {
-      "id": "US-035",
-      "title": "Test coverage verification",
-      "description": "As a developer, I want to ensure 80%+ test coverage.",
-      "acceptanceCriteria": [
-        "Run pytest with coverage reporting",
-        "Coverage report shows >=80%",
-        "Any gaps identified and addressed",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 35,
-      "passes": true,
-      "notes": "Completed: 83% coverage (189 tests passing), added tests for models/action.py, tools/actions/extract.py (text/links/inputs branches), tools/hybrid_observe.py (vision model), typecheck passes for src/"
-    },
-    {
-      "id": "US-036",
-      "title": "Demo preparation",
-      "description": "As a project stakeholder, I want a working demo of all features.",
-      "acceptanceCriteria": [
-        "Launch sequence shows browser opening and agent starting",
-        "Demo includes normal step (search/navigation/form)",
-        "Demo includes failure recovery (popup/error handling)",
-        "Demo includes dangerous action with user confirmation",
-        "Demo ends with completion report",
-        "Demo uses novel task (not pre-scripted)",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 36,
-      "passes": true,
-      "notes": "Completed: scripts/run.py with full agent orchestration, scripts/demo.py for demonstration, all features implemented (browser launch, planning, navigation, safety confirmations, stuck detection, completion report). Demo requires OPENROUTER_API_KEY environment variable to run. Run: uv run python scripts/demo.py"
+      "passes": false,
+      "notes": ""
     }
   ]
 }

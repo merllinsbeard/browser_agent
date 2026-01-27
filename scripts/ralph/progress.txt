@@ -13,6 +13,7 @@
 - Some Playwright methods don't accept timeout (e.g., keyboard.press()) - check API docs
 - For string parameters with fixed options, use Literal type for type safety (e.g., navigate.wait_until)
 - Use `# type: ignore[import-untyped]` for libraries without type stubs (e.g., PyYAML)
+- When deleting modules, check ALL __init__.py files across the package tree for stale imports
 
 # Ralph Progress Log
 Started: Mon Jan 26 22:00:52 MSK 2026
@@ -784,4 +785,22 @@ Typecheck passes (mypy strict mode).
 - The demo uses the same scripts/run.py entry point with optional arguments for demonstration
 - Rich console formatting makes the demo visually appealing with panels, tables, and colored output
 
+---
+
+## Jan 27, 2026 - US-001 (React Agent SDK Rewrite)
+- Deleted entire tests/ directory (24 test files, ~4000 lines)
+- Deleted src/browser_agent/core/recovery.py (605 lines of dead code)
+- Deleted src/browser_agent/tools/hybrid_observe.py (117 lines, vision fallback not wired in)
+- Deleted src/browser_agent/security/__init__.py (empty directory)
+- Updated src/browser_agent/core/__init__.py: removed all recovery.py imports (RetryAttempt, RetryResult, StuckDetector, detect_and_handle_overlays, detect_stuck, needs_reobservation, retry_with_backoff) and their __all__ entries
+- Updated scripts/run.py: removed StuckDetector import and stuck_detector usage, replaced with TODO comment placeholder
+- Fixed src/browser_agent/tools/__init__.py: removed hybrid_observe imports that would cause ImportError
+- Verified: `uv run python -c "import browser_agent"` succeeds
+- Verified: `uv run mypy src/` — Success: no issues found in 29 source files
+- Verified: `uv run python scripts/run.py --help` — shows usage without errors
+- Files changed: scripts/run.py, src/browser_agent/core/__init__.py, src/browser_agent/tools/__init__.py, + deleted files
+- **Learnings for future iterations:**
+  - When deleting modules, check ALL __init__.py files in the package — not just the direct parent. tools/__init__.py also imported from hybrid_observe.py
+  - The old codebase has many cross-references; deleting a module may break imports in unexpected places
+  - Always verify `run.py --help` after changes, not just `import browser_agent`
 ---
