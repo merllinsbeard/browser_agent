@@ -6,7 +6,9 @@
 - src/ layout: src/browser_agent/ contains all package code
 - Playwright's `launch_persistent_context()` returns BrowserContext, not Browser - browser closes when context closes
 - Use `str(path)` when passing pathlib.Path to Playwright APIs (they expect str, not Path)
-- Use frozen dataclasses for immutable models (Action, PageSnapshot, ActionResult, InteractiveElement)
+- Use Pydantic BaseModel with model_config = ConfigDict(frozen=True) for immutable models (BoundingBox, InteractiveElement, PageSnapshot, SuccessResult, FailureResult)
+- Use @field_validator with @classmethod for Pydantic field validation
+- InteractiveElement.name defaults to '' (empty string) — many ARIA elements have no accessible name
 - Action inherits from both str and Enum for JSON serialization compatibility
 - Element registry uses snapshot versioning to prevent stale element references
 - Element refs follow pattern "elem-{index}" for predictable identification
@@ -803,4 +805,26 @@ Typecheck passes (mypy strict mode).
   - When deleting modules, check ALL __init__.py files in the package — not just the direct parent. tools/__init__.py also imported from hybrid_observe.py
   - The old codebase has many cross-references; deleting a module may break imports in unexpected places
   - Always verify `run.py --help` after changes, not just `import browser_agent`
+---
+
+## Jan 27, 2026 - US-002 (Pydantic models)
+- Rewrote src/browser_agent/models/element.py: replaced @dataclass(frozen=True) with Pydantic BaseModel + model_config = ConfigDict(frozen=True)
+  - BoundingBox: x, y, width, height with @field_validator for non-negative width/height
+  - InteractiveElement: ref, role, name='' (name is NOT required — many ARIA elements have empty names), aria_label, placeholder, value_preview, bbox
+- Rewrote src/browser_agent/models/snapshot.py: PageSnapshot as Pydantic BaseModel with frozen config
+  - Changed screenshot_path from Path | None to str | None (consistent with SDK patterns)
+  - Kept with_version() method for snapshot versioning
+- Rewrote src/browser_agent/models/result.py: SuccessResult and FailureResult as Pydantic BaseModel with frozen config
+  - Kept success/error properties, kept success_result()/failure_result() factory functions
+  - No updated_plan field (SDK handles replanning natively)
+- Updated src/browser_agent/models/__init__.py: exports all models (BoundingBox, InteractiveElement, PageSnapshot, SuccessResult, FailureResult, ActionResult, success_result, failure_result)
+- Updated src/browser_agent/tools/observe.py: changed screenshot_path parameter from Path | None to str | None, removed unused pathlib import
+- Verified: `uv run python -c "from browser_agent.models import InteractiveElement, PageSnapshot, SuccessResult, FailureResult"` succeeds
+- Verified: `uv run mypy src/` — Success: no issues found in 29 source files
+- **Learnings for future iterations:**
+  - Pydantic v2 uses model_config = ConfigDict(frozen=True) instead of @dataclass(frozen=True)
+  - Pydantic @field_validator must use @classmethod decorator and receives (cls, v, info) params
+  - Pydantic v2 in lax mode coerces Path to str automatically, but explicit type annotation is cleaner
+  - Empty string default for name (name: str = '') is important because many ARIA elements lack accessible names
+  - When changing model field types (e.g., Path -> str), check all call sites that construct the model
 ---

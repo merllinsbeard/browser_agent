@@ -8,14 +8,14 @@ The union type design makes invalid states unrepresentable:
 - FailureResult: always has message and error
 """
 
-from dataclasses import dataclass
 from typing import Union
+
+from pydantic import BaseModel, ConfigDict
 
 from browser_agent.models.snapshot import PageSnapshot
 
 
-@dataclass(frozen=True)
-class SuccessResult:
+class SuccessResult(BaseModel):
     """Result of a successful action execution.
 
     This represents a successful action outcome. By design,
@@ -26,6 +26,8 @@ class SuccessResult:
         message: Human-readable message describing the result.
         new_snapshot: New page snapshot after the action (if state changed).
     """
+
+    model_config = ConfigDict(frozen=True)
 
     message: str
     new_snapshot: PageSnapshot | None = None
@@ -41,8 +43,7 @@ class SuccessResult:
         return None
 
 
-@dataclass(frozen=True)
-class FailureResult:
+class FailureResult(BaseModel):
     """Result of a failed action execution.
 
     This represents a failed action outcome. By design,
@@ -52,6 +53,8 @@ class FailureResult:
         message: Human-readable message describing the result.
         error: Error message describing the failure.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     message: str
     error: str
@@ -70,7 +73,7 @@ class FailureResult:
 # Union type for action results
 ActionResult = Union[SuccessResult, FailureResult]
 
-# For backwards compatibility during migration
+
 def success_result(message: str, new_snapshot: PageSnapshot | None = None) -> ActionResult:
     """Create a successful action result.
 

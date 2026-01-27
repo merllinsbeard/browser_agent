@@ -4,7 +4,6 @@ This module provides the browser_observe function for observing
 page state without full DOM dumps.
 """
 
-from pathlib import Path
 from typing import Any, Literal, cast
 
 import yaml  # type: ignore[import-untyped]
@@ -49,7 +48,7 @@ def browser_observe(
     registry: ElementRegistry,
     max_elements: int = 60,
     max_text_length: int = 3000,
-    screenshot_path: Path | None = None,
+    screenshot_path: str | None = None,
 ) -> PageSnapshot:
     """Observe the current page state.
 
