@@ -1,3 +1,22 @@
 # Ralph Progress Log
 Started: Tue Jan 27 23:01:18 MSK 2026
 ---
+
+## Codebase Patterns
+- Playwright aria_snapshot() returns YAML string, not structured object. Use yaml.safe_load() then regex parsing on keys/items.
+- ARIA node format: `role "name" [attr=val]` — regex `r'^(\w+)(?:\s+"(.*)")?(?:\s+\[(.+)\])?$'` parses all three parts.
+- Cross-module import cleanup: when deleting a module, check __init__.py files AND all importing modules (grep for `from browser_agent.X import`).
+- ElementRegistry.register_elements() currently takes (elements, selectors) — will change in US-004 to remove selectors param.
+
+---
+
+## 2026-01-28 00:55 - US-003
+- **What was implemented**: Verified ARIA snapshot parser (already fixed in commit 477286e)
+- **Files changed**: No code changes needed — parser was already correct
+- **Verification**: browser_observe() on example.com returns 1 element: `elem-0: [link] 'Learn more'`
+- **Learnings for future iterations:**
+  - Playwright's aria_snapshot() returns a YAML string with specific format: string items like `heading "Example Domain" [level=1]`, dict keys like `link "Learn more"`, and `/url` metadata keys to skip
+  - The `text` role should be skipped (not interactive)
+  - _ROLE_PRIORITY dict controls which ARIA roles are captured as interactive elements
+  - example.com is a good minimal test target — has exactly 1 interactive element (a link)
+---
