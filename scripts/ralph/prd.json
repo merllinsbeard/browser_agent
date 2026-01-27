@@ -125,6 +125,7 @@
         "Tool: browser_wait(seconds: int) -> str — waits specified seconds (max 10), returns message",
         "Tool: browser_extract(target: str) -> str — extracts data from page (title, url, text, links, inputs), returns extracted data",
         "Tool: browser_done(summary: str) -> str — signals task completion, returns the summary (this becomes the agent's final output)",
+        "Tool: ask_user(question: str) -> str — asks the user a question in the terminal (using rich Prompt) and returns their text answer. Use when the agent needs clarification, login credentials, or a choice between options. Blocks execution until the user responds",
         "Each tool has a clear docstring (the LLM sees these to decide which tool to call)",
         "All tools use await for async Playwright operations (e.g., await page.goto(url), await locator.click())",
         "Update src/browser_agent/tools/__init__.py to export create_browser_tools",
@@ -144,7 +145,7 @@
         "Create function create_navigator_agent(browser_tools: list) -> Agent that returns an SDK Agent instance",
         "Import from agents import Agent",
         "Agent configured with: name='Browser Navigator', instructions (detailed system prompt for ReAct behavior), tools=browser_tools, model=DEFAULT_SDK_MODEL",
-        "System prompt explains: (1) you control a browser via tools, (2) ALWAYS call browser_observe() first, (3) use element IDs from observation, (4) re-observe on failure, (5) never repeat same failed action, (6) call browser_done() when complete, (7) explain if stuck after 3 failures",
+        "System prompt explains: (1) you control a browser via tools, (2) ALWAYS call browser_observe() first, (3) use element IDs from observation, (4) re-observe on failure, (5) never repeat same failed action, (6) call browser_done() when complete, (7) call ask_user() when you need clarification or login credentials from the user, (8) explain if stuck after 3 failures",
         "Update src/browser_agent/agents/__init__.py to export create_navigator_agent",
         "Verified: uv run python -c \"from browser_agent.agents import create_navigator_agent; print('Navigator factory imported')\" succeeds",
         "Typecheck passes: uv run mypy src/"

@@ -112,6 +112,7 @@ The core architecture becomes: **Planner Agent** decomposes the task into a high
   - `browser_wait(seconds: int) -> str` — waits specified seconds (max 10), returns message
   - `browser_extract(target: str) -> str` — extracts data from page (title, url, text, links, inputs), returns extracted data
   - `browser_done(summary: str) -> str` — signals task completion, returns the summary (this becomes the agent's final output)
+  - `ask_user(question: str) -> str` — asks the user a question in the terminal (using `rich` Prompt) and returns their text answer. Use when the agent needs clarification, login credentials, or a choice between options. Blocks execution until the user responds
 - [ ] Each tool has a clear docstring (the LLM sees these to decide which tool to call)
 - [ ] All tools use `await` for async Playwright operations (e.g., `await page.goto(url)`, `await locator.click()`)
 - [ ] Update `src/browser_agent/tools/__init__.py` to export `create_browser_tools`
@@ -127,7 +128,7 @@ The core architecture becomes: **Planner Agent** decomposes the task into a high
 - [ ] Import `from agents import Agent`
 - [ ] The Agent is configured with:
   - `name="Browser Navigator"`
-  - `instructions` — detailed system prompt explaining: (1) you control a browser via tools, (2) ALWAYS call browser_observe() first to see the page, (3) use element IDs from observation (elem-0, elem-1, ...) for click/type actions, (4) if an action fails, re-observe and try a different approach, (5) never repeat the exact same failed action, (6) call browser_done() when the task is complete, (7) if stuck after 3 failed attempts on the same goal, explain what's wrong
+  - `instructions` — detailed system prompt explaining: (1) you control a browser via tools, (2) ALWAYS call browser_observe() first to see the page, (3) use element IDs from observation (elem-0, elem-1, ...) for click/type actions, (4) if an action fails, re-observe and try a different approach, (5) never repeat the exact same failed action, (6) call browser_done() when the task is complete, (7) call ask_user() when you need clarification or login credentials from the user, (8) if stuck after 3 failed attempts on the same goal, explain what's wrong
   - `tools=browser_tools` (the list from `create_browser_tools()`)
   - `model=DEFAULT_SDK_MODEL` (from core.llm)
 - [ ] Update `src/browser_agent/agents/__init__.py` to export `create_navigator_agent`
@@ -277,7 +278,8 @@ User Task (natural language)
     ▼                    │  browser_wait     │
 ┌─────────────────┐     │  browser_extract  │
 │  SDK Loop        │     │  browser_done     │
-│  (built-in)      │     └──────────────────┘
+│  (built-in)      │     │  ask_user         │
+│                  │     └──────────────────┘
 │  1. Call LLM     │              │
 │  2. Execute tool │              ▼
 │  3. Feed result  │     ┌──────────────────┐
