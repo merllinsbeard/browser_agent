@@ -6,7 +6,8 @@ Started: Tue Jan 27 23:01:18 MSK 2026
 - Playwright aria_snapshot() returns YAML string, not structured object. Use yaml.safe_load() then regex parsing on keys/items.
 - ARIA node format: `role "name" [attr=val]` — regex `r'^(\w+)(?:\s+"(.*)")?(?:\s+\[(.+)\])?$'` parses all three parts.
 - Cross-module import cleanup: when deleting a module, check __init__.py files AND all importing modules (grep for `from browser_agent.X import`).
-- ElementRegistry.register_elements() currently takes (elements, selectors) — will change in US-004 to remove selectors param.
+- ElementRegistry.register_elements() takes only elements (no selectors). Groups by (role, name) for nth index.
+- Playwright get_by_role() expects Literal type for role — use `cast(Any, role)` with mypy.
 
 ---
 
@@ -19,4 +20,16 @@ Started: Tue Jan 27 23:01:18 MSK 2026
   - The `text` role should be skipped (not interactive)
   - _ROLE_PRIORITY dict controls which ARIA roles are captured as interactive elements
   - example.com is a good minimal test target — has exactly 1 interactive element (a link)
+---
+
+## 2026-01-28 01:00 - US-004
+- **What was implemented**: Element Registry with get_by_role locators
+- **Files changed**:
+  - `src/browser_agent/core/registry.py` — RegistryEntry/ObservationResult converted to Pydantic, register_elements() takes only elements (no selectors), get_locator() uses get_by_role
+  - `src/browser_agent/tools/observe.py` — removed role_index_map/selectors CSS logic
+- **Verification**: get_locator('elem-0') on example.com returns `internal:role=link[name="Learn more"i] >> nth=0`, click succeeds
+- **Learnings for future iterations:**
+  - Playwright's `get_by_role()` expects a Literal type for role, not plain str — use `cast(Any, role)` to satisfy mypy
+  - When grouping elements by (role, name) for nth disambiguation, use a dict counter pattern: `counts[(role, name)] = counts.get((role, name), 0) + 1`
+  - The nth index is 0-based in Playwright's `.nth()` method
 ---

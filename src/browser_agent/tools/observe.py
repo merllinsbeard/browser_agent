@@ -80,17 +80,8 @@ def browser_observe(
     # Parse YAML and extract interactive elements
     elements = _extract_interactive_elements(aria_yaml, max_elements)
 
-    # Register elements with the registry
-    # Use nth-of-type to ensure unique selectors for each element
-    # Group elements by role to generate proper nth-of-type selectors
-    role_index_map: dict[str, int] = {}
-    selectors: list[str] = []
-    for e in elements:
-        role = e.role
-        role_index_map[role] = role_index_map.get(role, 0) + 1
-        # nth-of-type is 1-indexed
-        selectors.append(f"[role={role}]:nth-of-type({role_index_map[role]})")
-    result = registry.register_elements(elements, selectors)
+    # Register elements with the registry (groups by role+name for nth disambiguation)
+    result = registry.register_elements(elements)
     current_version = result.snapshot_version
 
     # Get visible text excerpt (truncated)

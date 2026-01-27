@@ -72,8 +72,8 @@
         "Typecheck passes: uv run mypy src/"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: RegistryEntry and ObservationResult converted to Pydantic BaseModel. register_elements() now takes only elements list, groups by (role, name) for nth index. get_locator() uses page.get_by_role(role, name=name).nth(nth). Removed CSS selector logic from observe.py. Verified on example.com: get_locator returns valid locator, click succeeds. mypy clean."
     },
     {
       "id": "US-005",
