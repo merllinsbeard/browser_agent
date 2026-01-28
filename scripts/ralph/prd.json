@@ -151,8 +151,8 @@
         "Typecheck passes: uv run mypy src/"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: Rewrote navigator.py — deleted old NavigatorAgent class, created create_navigator_agent(browser_tools) factory returning SDK Agent with name='Browser Navigator', detailed ReAct system prompt, tools=browser_tools, model=DEFAULT_SDK_MODEL. System prompt covers: observe-first workflow, element ID usage, failure recovery, ask_user for stuck/auth, context management tips. Updated agents/__init__.py to export create_navigator_agent. Import and mypy pass."
     },
     {
       "id": "US-009",

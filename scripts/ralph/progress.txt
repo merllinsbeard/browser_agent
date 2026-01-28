@@ -76,3 +76,16 @@ Started: Tue Jan 27 23:01:18 MSK 2026
   - `browser_navigate()` must call `registry.increment_version()` after successful navigation to invalidate stale element refs
   - `_extract_interactive_elements()` from observe.py is pure Python (no Playwright calls) — safe to reuse in async tools
 ---
+
+## 2026-01-28 03:55 - US-008
+- **What was implemented**: Navigator Agent using OpenAI Agents SDK
+- **Files changed**:
+  - `src/browser_agent/agents/navigator.py` — deleted old NavigatorAgent class, created `create_navigator_agent(browser_tools)` factory returning SDK `Agent`
+  - `src/browser_agent/agents/__init__.py` — added `create_navigator_agent` export
+- **Verification**: `from browser_agent.agents import create_navigator_agent` succeeds. mypy clean (0 issues in 30 files).
+- **Learnings for future iterations:**
+  - SDK `Agent` constructor takes: `name`, `instructions` (str), `tools` (list[Tool]), `model` (str), plus optional `handoffs`, `model_settings`, etc.
+  - The `Tool` type from `agents` is the base type for `@function_tool` decorated functions — use `list[Tool]` for type annotations
+  - System prompt (instructions) is critical for ReAct behavior — must explicitly tell the agent to observe first, use element IDs, handle failures, and call browser_done() when complete
+  - The Navigator agent doesn't need handoffs — it receives control from the Planner and uses tools to complete the task
+---
