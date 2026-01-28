@@ -33,3 +33,15 @@ Started: Tue Jan 27 23:01:18 MSK 2026
   - When grouping elements by (role, name) for nth disambiguation, use a dict counter pattern: `counts[(role, name)] = counts.get((role, name), 0) + 1`
   - The nth index is 0-based in Playwright's `.nth()` method
 ---
+
+## 2026-01-28 03:35 - US-005
+- **What was implemented**: Async browser context — `launch_persistent_context_async()` function
+- **Files changed**:
+  - `src/browser_agent/core/browser.py` — added async function using `playwright.async_api`
+  - `src/browser_agent/core/__init__.py` — added export for `launch_persistent_context_async`
+- **Verification**: Async context launches, navigates to example.com, reads page title, closes cleanly
+- **Learnings for future iterations:**
+  - Playwright async API mirrors sync API exactly — `async_playwright().start()` returns `AsyncPlaywright`, types are `AsyncBrowserContext`, etc.
+  - Import async types separately: `from playwright.async_api import BrowserContext as AsyncBrowserContext`
+  - The async `launch_persistent_context()` returns a context with `ctx.pages` already populated (same as sync)
+---

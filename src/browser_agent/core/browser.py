@@ -6,6 +6,8 @@ with persistent storage for session data (cookies, localStorage, etc.).
 
 from pathlib import Path
 
+from playwright.async_api import BrowserContext as AsyncBrowserContext
+from playwright.async_api import Playwright as AsyncPlaywright
 from playwright.sync_api import Browser, BrowserContext, Playwright
 
 
@@ -47,6 +49,33 @@ def launch_persistent_context(
         - The browser is automatically closed when the context is closed.
     """
     context = playwright.chromium.launch_persistent_context(
+        user_data_dir=str(user_data_dir),
+        headless=headless,
+    )
+    return context
+
+
+async def launch_persistent_context_async(
+    playwright: AsyncPlaywright,
+    user_data_dir: str | Path,
+    headless: bool = False,
+) -> AsyncBrowserContext:
+    """Launch a browser with persistent storage for session data (async version).
+
+    Async equivalent of launch_persistent_context() for use with the
+    OpenAI Agents SDK and async Playwright.
+
+    Args:
+        playwright: The async Playwright instance (from async_playwright().start()).
+        user_data_dir: Path to directory where session data will be stored.
+                      Directory will be created if it doesn't exist.
+        headless: If False (default), launches in visible (headful) mode.
+                 If True, launches in headless mode without UI.
+
+    Returns:
+        An async BrowserContext instance.
+    """
+    context = await playwright.chromium.launch_persistent_context(
         user_data_dir=str(user_data_dir),
         headless=headless,
     )

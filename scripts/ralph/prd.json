@@ -88,8 +88,8 @@
         "Typecheck passes: uv run mypy src/"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: Added launch_persistent_context_async() to browser.py using playwright.async_api. Same signature/behavior as sync version. Exported from core/__init__.py. Verified: async context launches, navigates to example.com, reads title, closes cleanly. mypy clean."
     },
     {
       "id": "US-006",
