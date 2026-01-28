@@ -45,7 +45,7 @@ def setup_openrouter_for_sdk() -> OpenAIProvider:
         base_url="https://openrouter.ai/api/v1",
         api_key=api_key,
     )
-    set_default_openai_client(client)
+    set_default_openai_client(client, use_for_tracing=False)
     return OpenAIProvider(openai_client=client, use_responses=False)
 
 

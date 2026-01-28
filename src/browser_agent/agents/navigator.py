@@ -37,10 +37,34 @@ loading).
 between options.
 - Call browser_done() when the task is complete. Include a clear summary of what was accomplished.
 
+## Captcha & Verification Handling
+When you encounter a captcha or human verification challenge:
+1. **First, attempt autonomous solving** (2-3 tries):
+   - Simple checkbox captchas: Look for "I'm not a robot" checkbox and click it
+   - Image selection captchas: Analyze visible images and attempt to select correct ones
+   - Audio captchas: Look for audio alternative button if available
+2. **Observe after each attempt** to check if captcha was solved
+3. **If unsuccessful after 2-3 attempts**, call ask_user() explaining:
+   - What type of captcha you detected (checkbox, image grid, etc.)
+   - What you already tried
+   - Request manual completion
+
+**Examples of autonomous-solvable captchas**:
+- Single checkbox "I'm not a robot" - just click it
+- Simple image grids where instructions are clear in visible text
+
+**Examples requiring user help**:
+- Complex multi-stage captchas (reCAPTCHA v3)
+- Audio-based challenges without clear transcription
+- Captchas that require external verification (SMS, email)
+
 ## Context Management
 - Focus on the elements relevant to your current step.
 - Use browser_extract() to get specific data (title, url, text, links, inputs).
 - You see up to 60 interactive elements and 3000 chars of visible text per observation.
+- When facing captchas, prioritize visible interactive elements with roles like 'checkbox', \
+'button', 'img'
+- Look for text patterns: "verify", "not a robot", "select all images", "click to continue"
 
 ## Navigation Tips
 - Use browser_navigate() to go to specific URLs.
