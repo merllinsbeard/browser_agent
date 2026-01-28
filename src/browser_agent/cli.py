@@ -6,6 +6,7 @@ from pathlib import Path
 from rich.console import Console
 
 from browser_agent.core.browser import launch_persistent_context
+from browser_agent.core.logging import ErrorIds, logError
 from playwright.sync_api import sync_playwright
 
 console = Console()
@@ -38,22 +39,28 @@ def main() -> None:
     console.print("Use [bold]scripts/run.py[/bold] to run the agent interactively")
 
     # Test browser launch
+    context = None
     with sync_playwright() as p:
-        console.print("\n[yellow]Launching browser...[/yellow]")
-        context = launch_persistent_context(
-            p,
-            user_data_dir=args.session_dir,
-            headless=args.headless,
-        )
-        console.print("[green]Browser launched successfully![/green]")
-        console.print("[dim]Press Ctrl+C to close...[/dim]")
-
         try:
+            console.print("\n[yellow]Launching browser...[/yellow]")
+            context = launch_persistent_context(
+                p,
+                user_data_dir=args.session_dir,
+                headless=args.headless,
+            )
+            console.print("[green]Browser launched successfully![/green]")
+            console.print("[dim]Press Ctrl+C to close...[/dim]")
+
             # Keep browser open until user interrupts
             context.wait_for_event("close", timeout=0)
         except KeyboardInterrupt:
             console.print("\n[yellow]Closing browser...[/yellow]")
-            context.close()
+        except Exception as e:
+            logError(ErrorIds.UNEXPECTED_ERROR, f"CLI error: {e}", exc_info=True)
+            console.print(f"\n[red]Error: {e}[/red]")
+        finally:
+            if context is not None:
+                context.close()
             console.print("[green]Done.[/green]")
 
 

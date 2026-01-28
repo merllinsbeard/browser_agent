@@ -84,18 +84,18 @@ class TestElementRegistry:
         mock_page.get_by_role.return_value.nth.assert_called_once_with(0)
         assert locator == mock_locator
 
-    def test_get_locator_empty_name_uses_css(
+    def test_get_locator_empty_name_uses_get_by_role(
         self, registry: ElementRegistry, elements: list[InteractiveElement]
     ) -> None:
         registry.register_elements(elements)
         mock_page = MagicMock()
         mock_locator = MagicMock()
-        mock_page.locator.return_value.nth.return_value = mock_locator
+        mock_page.get_by_role.return_value.nth.return_value = mock_locator
 
         locator = registry.get_locator(mock_page, "elem-3")
 
-        mock_page.locator.assert_called_once_with('[role="textbox"]')
-        mock_page.locator.return_value.nth.assert_called_once_with(0)
+        mock_page.get_by_role.assert_called_once()
+        mock_page.get_by_role.return_value.nth.assert_called_once_with(0)
         assert locator == mock_locator
 
     def test_nth_disambiguation(

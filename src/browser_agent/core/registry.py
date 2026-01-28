@@ -8,7 +8,7 @@ without using hardcoded selectors.
 from typing import Any, cast
 
 from pydantic import BaseModel, ConfigDict
-from playwright.sync_api import Locator, Page
+from playwright.async_api import Locator, Page
 
 from browser_agent.models.element import InteractiveElement
 
@@ -142,7 +142,7 @@ class ElementRegistry:
         if entry.element.name:
             return page.get_by_role(cast(Any, entry.element.role), name=entry.element.name).nth(entry.nth)
         else:
-            return page.locator(f'[role="{entry.element.role}"]').nth(entry.nth)
+            return page.get_by_role(cast(Any, entry.element.role)).nth(entry.nth)
 
     def get_element(self, element_ref: str) -> InteractiveElement:
         """Get the InteractiveElement for a reference.

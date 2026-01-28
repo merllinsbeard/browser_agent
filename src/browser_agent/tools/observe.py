@@ -116,7 +116,7 @@ def _extract_interactive_elements(aria_yaml: str, max_elements: int) -> list[Int
     """
     try:
         parsed = yaml.safe_load(aria_yaml)
-    except yaml.YAMLError as e:
+    except (yaml.YAMLError, TypeError, AttributeError) as e:
         logError(
             ErrorIds.ARIA_SNAPSHOT_PARSE_FAILED,
             f"Failed to parse ARIA snapshot YAML: {e}",
@@ -256,4 +256,4 @@ def _get_visible_text(page: Page, max_length: int) -> str:
             f"Failed to extract visible text: {e}",
             exc_info=True,
         )
-        return ""
+        return "[Text extraction failed]"

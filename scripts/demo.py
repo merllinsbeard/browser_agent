@@ -72,10 +72,20 @@ async def run_demo(
         console.print("[yellow][dim]Auto-approve mode: ENABLED[/dim][/yellow]")
 
     # Configure SDK LLM client (returns OpenAIProvider for RunConfig)
-    model_provider = setup_openrouter_for_sdk()
+    try:
+        model_provider = setup_openrouter_for_sdk()
+    except Exception as e:
+        console.print(f"\n[red]LLM setup failed: {e}[/red]")
+        console.print("[dim]Ensure OPENROUTER_API_KEY is set.[/dim]")
+        return
 
     # Launch browser (async)
-    pw = await async_playwright().start()
+    try:
+        pw = await async_playwright().start()
+    except Exception as e:
+        console.print(f"\n[red]Playwright failed to start: {e}[/red]")
+        console.print("[dim]Try: playwright install chromium[/dim]")
+        return
     context = None
     try:
         console.print("\n[yellow]Launching browser...[/yellow]")

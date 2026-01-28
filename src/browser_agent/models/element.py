@@ -63,6 +63,7 @@ class InteractiveElement(BaseModel):
         if not v:
             raise ValueError("must not be empty")
         return v
+
     aria_label: str | None = None
     placeholder: str | None = None
     value_preview: str | None = None

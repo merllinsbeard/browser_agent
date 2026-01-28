@@ -1,6 +1,5 @@
 """Tests for safety checks module."""
 
-import asyncio
 from unittest.mock import patch
 
 import pytest
@@ -73,22 +72,35 @@ class TestIsDestructiveAction:
         # But "order" as standalone word is destructive
         assert is_destructive_action("order system") is True
 
+    # C-1: Punctuation bypass tests
+    def test_punctuation_delete_question(self) -> None:
+        assert is_destructive_action("Delete?") is True
+
+    def test_punctuation_submit_exclamation(self) -> None:
+        assert is_destructive_action("Submit!") is True
+
+    def test_punctuation_confirm_period(self) -> None:
+        assert is_destructive_action("Confirm.") is True
+
+    def test_punctuation_buy_comma(self) -> None:
+        assert is_destructive_action("Buy, now") is True
+
+    def test_punctuation_ordering_still_safe(self) -> None:
+        assert is_destructive_action("ordering system") is False
+
 
 class TestAskUserConfirmation:
-    def test_auto_approve_returns_true(self) -> None:
-        result = asyncio.get_event_loop().run_until_complete(
-            ask_user_confirmation("delete account", auto_approve=True)
-        )
+    @pytest.mark.asyncio
+    async def test_auto_approve_returns_true(self) -> None:
+        result = await ask_user_confirmation("delete account", auto_approve=True)
         assert result is True
 
-    def test_eoferror_returns_false(self) -> None:
+    @pytest.mark.asyncio
+    async def test_eoferror_returns_false(self) -> None:
         with patch("browser_agent.tools.safety.asyncio.to_thread") as mock_to_thread:
-            # Simulate _prompt raising EOFError (caught inside, returns False)
             async def fake_to_thread(fn: object) -> bool:
                 return False  # EOFError path returns False
 
             mock_to_thread.side_effect = fake_to_thread
-            result = asyncio.get_event_loop().run_until_complete(
-                ask_user_confirmation("delete account", auto_approve=False)
-            )
+            result = await ask_user_confirmation("delete account", auto_approve=False)
             assert result is False

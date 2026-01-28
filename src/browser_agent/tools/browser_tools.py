@@ -46,8 +46,16 @@ def create_browser_tools(page: Page, registry: ElementRegistry, auto_approve: bo
         title = await page.title()
 
         # Get ARIA snapshot and parse interactive elements
-        aria_yaml = await page.locator("body").aria_snapshot()
-        elements = _extract_interactive_elements(aria_yaml, max_elements=60)
+        try:
+            aria_yaml = await page.locator("body").aria_snapshot()
+            elements = _extract_interactive_elements(aria_yaml, max_elements=60)
+        except Exception as e:
+            logError(
+                ErrorIds.ARIA_SNAPSHOT_PARSE_FAILED,
+                f"Failed to get ARIA snapshot: {e}",
+                exc_info=True,
+            )
+            elements = []
 
         # Register elements with the registry (assigns refs, tracks version)
         registry.register_elements(elements)
@@ -64,7 +72,7 @@ def create_browser_tools(page: Page, registry: ElementRegistry, auto_approve: bo
                 f"Failed to extract visible text: {e}",
                 exc_info=True,
             )
-            text = ""
+            text = "[Text extraction failed -- page content may exist but could not be read]"
 
         # Format output for the LLM
         lines = [f"Page: {title}", f"URL: {url}", "", "Interactive Elements:"]
@@ -157,7 +165,10 @@ def create_browser_tools(page: Page, registry: ElementRegistry, auto_approve: bo
         try:
             # Enter key can trigger form submission — apply safety check
             if key.lower() == "enter":
-                title = await page.title()
+                try:
+                    title = await page.title()
+                except Exception:
+                    title = "(unknown page)"
                 action_desc = f"press Enter on {title}"
                 if is_destructive_action(action_desc):
                     confirmed = await ask_user_confirmation(action_desc, auto_approve=auto_approve)
@@ -178,7 +189,10 @@ def create_browser_tools(page: Page, registry: ElementRegistry, auto_approve: bo
             direction: Scroll direction, either 'up' or 'down'.
         """
         try:
-            delta = -500 if direction.lower() == "up" else 500
+            direction_lower = direction.lower()
+            if direction_lower not in ("up", "down"):
+                return f"Error: Invalid scroll direction '{direction}'. Use 'up' or 'down'."
+            delta = -500 if direction_lower == "up" else 500
             await page.mouse.wheel(0, delta)
             logForDebugging(f"Scrolled {direction} by 500px")
             return f"Scrolled {direction} by 500px"
@@ -247,7 +261,7 @@ def create_browser_tools(page: Page, registry: ElementRegistry, auto_approve: bo
                 return f"Page text content (truncated to 4000 chars):\n{text[:4000]}"
 
             elif "link" in target_lower or "anchor" in target_lower:
-                links = await page.locator("a").all()
+                links = await page.get_by_role("link").all()
                 link_texts = []
                 for link in links[:20]:
                     lt = await link.inner_text()
@@ -256,7 +270,12 @@ def create_browser_tools(page: Page, registry: ElementRegistry, auto_approve: bo
                 return f"Found {len(links)} links. First 20:\n" + "\n".join(link_texts)
 
             elif "input" in target_lower or "form" in target_lower:
-                inputs = await page.locator("input, textarea, select").all()
+                # Gather form inputs via semantic roles
+                textboxes = await page.get_by_role("textbox").all()
+                comboboxes = await page.get_by_role("combobox").all()
+                checkboxes = await page.get_by_role("checkbox").all()
+                spinbuttons = await page.get_by_role("spinbutton").all()
+                inputs = textboxes + comboboxes + checkboxes + spinbuttons
                 input_info = []
                 for inp in inputs[:20]:
                     inp_type = await inp.get_attribute("type") or "text"
@@ -272,6 +291,7 @@ def create_browser_tools(page: Page, registry: ElementRegistry, auto_approve: bo
                 return f"Page content (first 2000 chars):\n{text[:2000]}"
 
         except Exception as e:
+            logError(ErrorIds.ELEMENT_INTERACTION_FAILED, f"Error extracting '{target}': {e}", exc_info=True)
             return f"Error extracting '{target}': {e}"
 
     @function_tool
@@ -300,8 +320,11 @@ def create_browser_tools(page: Page, registry: ElementRegistry, auto_approve: bo
         console = Console()
 
         def _prompt() -> str:
-            console.print(f"\n[bold yellow]Agent asks:[/bold yellow] {question}")
-            return Prompt.ask("[bold green]Your answer[/bold green]")
+            try:
+                console.print(f"\n[bold yellow]Agent asks:[/bold yellow] {question}")
+                return Prompt.ask("[bold green]Your answer[/bold green]")
+            except (EOFError, KeyboardInterrupt):
+                return "[User input unavailable — running in non-interactive mode]"
 
         answer = await asyncio.to_thread(_prompt)
         return answer

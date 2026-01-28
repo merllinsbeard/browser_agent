@@ -11,6 +11,8 @@ from openai import AsyncOpenAI, OpenAI
 from agents import set_default_openai_client
 from agents.models.openai_provider import OpenAIProvider
 
+from browser_agent.core.logging import ErrorIds, logError
+
 # Default model to use on OpenRouter
 DEFAULT_MODEL = "anthropic/claude-3.5-sonnet"
 
@@ -94,12 +96,18 @@ def call_llm(
 
     client = get_openrouter_client()
 
-    response = client.chat.completions.create(
-        model=model,
-        messages=messages,  # type: ignore[arg-type]
-        temperature=temperature,
-        max_tokens=max_tokens,
-    )
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,  # type: ignore[arg-type]
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+    except Exception as e:
+        logError(ErrorIds.LLM_API_ERROR, f"LLM API call failed: {e}", exc_info=True)
+        raise
+
     if not response.choices:
+        logError(ErrorIds.LLM_MALFORMED_RESPONSE, "LLM returned empty choices list")
         return ""
     return response.choices[0].message.content or ""
