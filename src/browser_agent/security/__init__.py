@@ -1,1 +1,0 @@
-"""Browser Agent security layer."""

@@ -40,3 +40,4 @@ build/
 # Project specific
 *.log
 screenshot_*.png
+nohup.out

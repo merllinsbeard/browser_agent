@@ -4,16 +4,21 @@ This module provides the browser_observe function for observing
 page state without full DOM dumps.
 """
 
-from pathlib import Path
-from typing import Any, Literal, cast
+import re
+from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 from playwright.sync_api import Page
 
+from browser_agent.core.logging import ErrorIds, logError
 from browser_agent.core.registry import ElementRegistry
 from browser_agent.models.element import BoundingBox, InteractiveElement
 from browser_agent.models.snapshot import PageSnapshot
 
+
+# Regex to parse ARIA node strings like: heading "Example Domain" [level=1]
+# Group 1: role (e.g., "heading"), Group 2: name (e.g., "Example Domain"), Group 3: attributes (e.g., "level=1")
+_ARIA_NODE_PATTERN = re.compile(r'^(\w+)(?:\s+"(.*)")?(?:\s+\[(.+)\])?$')
 
 # Priority roles to capture (higher = more important)
 _ROLE_PRIORITY: dict[str, int] = {
@@ -49,7 +54,7 @@ def browser_observe(
     registry: ElementRegistry,
     max_elements: int = 60,
     max_text_length: int = 3000,
-    screenshot_path: Path | None = None,
+    screenshot_path: str | None = None,
 ) -> PageSnapshot:
     """Observe the current page state.
 
@@ -67,8 +72,8 @@ def browser_observe(
         A PageSnapshot containing the observed page state.
     """
     # Get basic page info
-    url = cast(str, page.url)
-    title = cast(str, page.title)
+    url = page.url
+    title = page.title()
 
     # Get the ARIA snapshot YAML
     aria_yaml = page.locator("body").aria_snapshot()
@@ -76,17 +81,8 @@ def browser_observe(
     # Parse YAML and extract interactive elements
     elements = _extract_interactive_elements(aria_yaml, max_elements)
 
-    # Register elements with the registry
-    # Use nth-of-type to ensure unique selectors for each element
-    # Group elements by role to generate proper nth-of-type selectors
-    role_index_map: dict[str, int] = {}
-    selectors: list[str] = []
-    for e in elements:
-        role = e.role
-        role_index_map[role] = role_index_map.get(role, 0) + 1
-        # nth-of-type is 1-indexed
-        selectors.append(f"[role={role}]:nth-of-type({role_index_map[role]})")
-    result = registry.register_elements(elements, selectors)
+    # Register elements with the registry (groups by role+name for nth disambiguation)
+    result = registry.register_elements(elements)
     current_version = result.snapshot_version
 
     # Get visible text excerpt (truncated)
@@ -120,11 +116,15 @@ def _extract_interactive_elements(aria_yaml: str, max_elements: int) -> list[Int
     """
     try:
         parsed = yaml.safe_load(aria_yaml)
-    except yaml.YAMLError:
-        # If YAML parsing fails, return empty list
+    except (yaml.YAMLError, TypeError, AttributeError) as e:
+        logError(
+            ErrorIds.ARIA_SNAPSHOT_PARSE_FAILED,
+            f"Failed to parse ARIA snapshot YAML: {e}",
+            exc_info=True,
+        )
         return []
 
-    elements: list[dict] = []
+    elements: list[dict[str, Any]] = []
     _traverse_aria_tree(parsed, elements)
 
     # Sort by priority and limit to max_elements
@@ -136,7 +136,8 @@ def _extract_interactive_elements(aria_yaml: str, max_elements: int) -> list[Int
     for i, elem in enumerate(elements):
         role = elem.get("role", "unknown")
         name = elem.get("name", "")
-        attributes = elem.get("attributes", {})
+        attributes: dict[str, str] = elem.get("attributes", {})
+        value = attributes.get("value", "")
 
         result.append(
             InteractiveElement(
@@ -145,7 +146,7 @@ def _extract_interactive_elements(aria_yaml: str, max_elements: int) -> list[Int
                 name=name,
                 aria_label=attributes.get("aria-label"),
                 placeholder=attributes.get("placeholder"),
-                value_preview=elem.get("value", "")[:100],
+                value_preview=value[:100] if value else None,
                 bbox=None,  # BoundingBox not available from ARIA snapshot
             )
         )
@@ -153,27 +154,81 @@ def _extract_interactive_elements(aria_yaml: str, max_elements: int) -> list[Int
     return result
 
 
-def _traverse_aria_tree(node: Any, elements: list[dict]) -> None:
+def _traverse_aria_tree(node: Any, elements: list[dict[str, Any]]) -> None:
     """Traverse the ARIA tree and collect interactive elements.
+
+    Playwright's aria_snapshot() returns YAML where:
+    - String items encode role+name: 'link "More information..."'
+    - Dict keys encode role+name: {'heading "Example Domain" [level=1]': children}
+    - Values can be strings (text content), lists (children), or None
 
     Args:
         node: Current node in the tree (can be dict, list, or string).
-        elements: Accumulator list for interactive elements.
+        elements: Accumulator list for interactive element dicts.
     """
-    if isinstance(node, dict):
-        # Check if this is an interactive element
-        role = node.get("role", "")
-        if role in _ROLE_PRIORITY:
-            elements.append(node)
-
-        # Recurse into children
-        for key, value in node.items():
-            if key not in ("role", "name", "attributes"):
-                _traverse_aria_tree(value, elements)
-
-    elif isinstance(node, list):
+    if isinstance(node, list):
         for item in node:
             _traverse_aria_tree(item, elements)
+
+    elif isinstance(node, dict):
+        for key, value in node.items():
+            # Skip metadata keys like /url
+            if isinstance(key, str) and key.startswith("/"):
+                continue
+            _process_aria_node(str(key), value, elements)
+
+    elif isinstance(node, str):
+        # String item in a list: 'heading "Example Domain" [level=1]'
+        _process_aria_node(node, None, elements)
+
+
+def _process_aria_node(
+    key: str, value: Any, elements: list[dict[str, Any]]
+) -> None:
+    """Process a single ARIA node (string or dict key).
+
+    Parses the key string to extract role, name, and attributes using
+    the _ARIA_NODE_PATTERN regex.
+
+    Args:
+        key: The string to parse (role + optional name + optional attributes).
+        value: The value associated with this key (children, text, or None).
+        elements: Accumulator list for interactive element dicts.
+    """
+    match = _ARIA_NODE_PATTERN.match(key)
+    if not match:
+        return
+
+    role = match.group(1)
+    name = match.group(2) or ""
+    attrs_str = match.group(3)
+
+    # Skip text role (not interactive)
+    if role == "text":
+        return
+
+    # Parse attributes like "level=1, checked=true" into dict
+    attributes: dict[str, str] = {}
+    if attrs_str:
+        for attr in attrs_str.split(","):
+            attr = attr.strip()
+            if "=" in attr:
+                attr_key, _, attr_value = attr.partition("=")
+                attributes[attr_key.strip()] = attr_value.strip()
+
+    # If role is in priority list, add to elements
+    if role in _ROLE_PRIORITY:
+        elements.append({
+            "role": role,
+            "name": name,
+            "attributes": attributes,
+        })
+
+    # Recurse into children
+    if isinstance(value, list):
+        _traverse_aria_tree(value, elements)
+    elif isinstance(value, dict):
+        _traverse_aria_tree(value, elements)
 
 
 def _get_visible_text(page: Page, max_length: int) -> str:
@@ -195,5 +250,10 @@ def _get_visible_text(page: Page, max_length: int) -> str:
         if len(text) > max_length:
             text = text[:max_length] + "..."
         return text
-    except Exception:
-        return ""
+    except Exception as e:
+        logError(
+            ErrorIds.VISIBLE_TEXT_EXTRACTION_FAILED,
+            f"Failed to extract visible text: {e}",
+            exc_info=True,
+        )
+        return "[Text extraction failed]"

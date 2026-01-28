@@ -54,8 +54,8 @@
         "Typecheck passes: uv run mypy src/"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Completed: Parser already fixed in commit 477286e. _traverse_aria_tree handles Playwright ARIA snapshot YAML format: string items in lists, dict keys with role+name, recursive traversal. Regex extracts role/name/attributes. Skips /url metadata and text role. Verified on example.com: finds 1 element (link 'Learn more'). mypy clean."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
@@ -72,8 +72,8 @@
         "Typecheck passes: uv run mypy src/"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Completed: RegistryEntry and ObservationResult converted to Pydantic BaseModel. register_elements() now takes only elements list, groups by (role, name) for nth index. get_locator() uses page.get_by_role(role, name=name).nth(nth). Removed CSS selector logic from observe.py. Verified on example.com: get_locator returns valid locator, click succeeds. mypy clean."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
@@ -88,8 +88,8 @@
         "Typecheck passes: uv run mypy src/"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "Completed: Added launch_persistent_context_async() to browser.py using playwright.async_api. Same signature/behavior as sync version. Exported from core/__init__.py. Verified: async context launches, navigates to example.com, reads title, closes cleanly. mypy clean."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-006",
@@ -105,8 +105,8 @@
         "Typecheck passes: uv run mypy src/"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "Completed: Added setup_openrouter_for_sdk() using AsyncOpenAI + set_default_openai_client() from agents SDK. Added DEFAULT_SDK_MODEL constant. Exported both from core/__init__.py. Import and mypy pass."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-007",
@@ -125,7 +125,6 @@
         "Tool: browser_wait(seconds: int) -> str — waits specified seconds (max 10), returns message",
         "Tool: browser_extract(target: str) -> str — extracts data from page (title, url, text, links, inputs), returns extracted data",
         "Tool: browser_done(summary: str) -> str — signals task completion, returns the summary (this becomes the agent's final output)",
-        "Tool: ask_user(question: str) -> str — asks the user a question in the terminal (using rich Prompt) and returns their text answer. Use when the agent needs clarification, login credentials, or a choice between options. Blocks execution until the user responds",
         "Each tool has a clear docstring (the LLM sees these to decide which tool to call)",
         "All tools use await for async Playwright operations (e.g., await page.goto(url), await locator.click())",
         "Update src/browser_agent/tools/__init__.py to export create_browser_tools",
@@ -133,8 +132,8 @@
         "Typecheck passes: uv run mypy src/"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "Completed: Created browser_tools.py with create_browser_tools() factory returning 10 @function_tool async functions (browser_observe, browser_click, browser_type, browser_press, browser_scroll, browser_navigate, browser_wait, browser_extract, browser_done, ask_user). Factory uses closures over async Page and ElementRegistry. Locators use cast(Any) to bridge sync registry types with async Page. Exported from tools/__init__.py. Import and mypy pass."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-008",
@@ -145,14 +144,14 @@
         "Create function create_navigator_agent(browser_tools: list) -> Agent that returns an SDK Agent instance",
         "Import from agents import Agent",
         "Agent configured with: name='Browser Navigator', instructions (detailed system prompt for ReAct behavior), tools=browser_tools, model=DEFAULT_SDK_MODEL",
-        "System prompt explains: (1) you control a browser via tools, (2) ALWAYS call browser_observe() first, (3) use element IDs from observation, (4) re-observe on failure, (5) never repeat same failed action, (6) call browser_done() when complete, (7) call ask_user() when you need clarification or login credentials from the user, (8) explain if stuck after 3 failures",
+        "System prompt explains: (1) you control a browser via tools, (2) ALWAYS call browser_observe() first, (3) use element IDs from observation, (4) re-observe on failure, (5) never repeat same failed action, (6) call browser_done() when complete, (7) explain if stuck after 3 failures",
         "Update src/browser_agent/agents/__init__.py to export create_navigator_agent",
         "Verified: uv run python -c \"from browser_agent.agents import create_navigator_agent; print('Navigator factory imported')\" succeeds",
         "Typecheck passes: uv run mypy src/"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": "Completed: Rewrote navigator.py — deleted old NavigatorAgent class, created create_navigator_agent(browser_tools) factory returning SDK Agent with name='Browser Navigator', detailed ReAct system prompt, tools=browser_tools, model=DEFAULT_SDK_MODEL. System prompt covers: observe-first workflow, element ID usage, failure recovery, ask_user for stuck/auth, context management tips. Updated agents/__init__.py to export create_navigator_agent. Import and mypy pass."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-009",
@@ -170,8 +169,8 @@
         "Typecheck passes: uv run mypy src/"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": "Completed: Rewrote planner.py — deleted old PlannerAgent class, created create_planner_agent(navigator_agent) factory returning SDK Agent with name='Task Planner', handoffs=[navigator_agent], detailed planning system prompt, model=DEFAULT_SDK_MODEL. Removed SafetyAgent class from safety.py. Updated agents/__init__.py to export create_planner_agent and create_navigator_agent only. Import and mypy pass."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-010",
@@ -187,8 +186,8 @@
         "Typecheck passes: uv run mypy src/"
       ],
       "priority": 10,
-      "passes": true,
-      "notes": "Completed: Created tools/safety.py with is_destructive_action() (keyword matching for delete, remove, spam, submit, payment, checkout, confirm, purchase, buy, order) and async ask_user_confirmation() (rich Confirm prompt via asyncio.to_thread). Integrated safety checks into browser_click and browser_type in browser_tools.py — element is retrieved before action, checked against destructive keywords, user prompted if destructive. Old agents/safety.py already cleaned up in US-009. Verified: is_destructive_action('delete account')=True, is_destructive_action('click search')=False. mypy clean (0 issues in 31 files)."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-011",
@@ -213,8 +212,8 @@
         "Typecheck passes: uv run mypy src/ scripts/"
       ],
       "priority": 11,
-      "passes": true,
-      "notes": "Completed: Rewrote scripts/run.py as fully async — async def main() with asyncio.run(). Uses async_playwright() + launch_persistent_context_async() for browser, setup_openrouter_for_sdk() for LLM, create_browser_tools/create_navigator_agent/create_planner_agent for SDK agents, Runner.run(planner, task, max_turns=30) for ReAct execution. Handles MaxTurnsExceeded with warning panel. Added --clean-cache flag (shutil.rmtree). Kept Rich console output, Ctrl+C browser-open behavior. Deleted core/context.py (ContextTracker), removed from core/__init__.py. Updated eval.py to remove broken old imports (placeholder for US-013). mypy clean (0 issues in 33 files), --help works."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-012",
@@ -233,8 +232,8 @@
         "Typecheck passes: uv run mypy src/ tests/"
       ],
       "priority": 12,
-      "passes": true,
-      "notes": "Completed: Created tests/ directory with conftest.py and 6 test modules (77 tests total, all passing). test_element.py: BoundingBox creation/validation/frozen, InteractiveElement creation/defaults/frozen. test_snapshot.py: PageSnapshot creation/defaults/with_version/frozen. test_result.py: SuccessResult/FailureResult properties, factory functions. test_observe.py: _traverse_aria_tree with real ARIA snapshots (example.com, complex, nested, metadata), _extract_interactive_elements priority/limit/refs. test_safety.py: all destructive keywords, safe inputs, case insensitivity, whole-word matching. test_registry.py: register_elements, get_locator with mock Page, nth disambiguation, StaleElementError, version tracking, clear. mypy clean (0 issues in 41 files)."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-013",
@@ -249,8 +248,8 @@
         "Typecheck passes: uv run mypy src/ scripts/"
       ],
       "priority": 13,
-      "passes": true,
-      "notes": "Completed: Rewrote scripts/demo.py from subprocess-based launcher to async SDK architecture (same pattern as run.py). Fixed critical SDK integration bugs: (1) MultiProvider prefix parsing — bypassed by returning OpenAIProvider from setup_openrouter_for_sdk() and passing via RunConfig(model_provider=...), (2) Updated DEFAULT_SDK_MODEL from expired 'google/gemini-2.5-flash-preview-05-20' to 'google/gemini-2.5-flash'. E2e verified: agent completes 'go to example.com and tell me what the page title is' — outputs 'The title of example.com is \"Example Domain\"'. Planner→Navigator handoff works, multiple tools used in sequence. mypy clean (0 issues in 33 files), 77 tests pass."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

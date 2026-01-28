@@ -1,148 +1,154 @@
-"""Tests for browser observation tools."""
+"""Tests for ARIA snapshot parsing in observe module."""
 
-from pathlib import Path
-from unittest.mock import MagicMock, Mock
+import yaml  # type: ignore[import-untyped]
 
-import pytest
-
-from browser_agent.core.registry import ElementRegistry
-from browser_agent.models.snapshot import PageSnapshot
-from browser_agent.tools.observe import browser_observe, _extract_interactive_elements
+from browser_agent.tools.observe import _extract_interactive_elements, _traverse_aria_tree
 
 
-@pytest.fixture
-def mock_page():
-    """Create a mock Playwright Page object."""
-    page = MagicMock()
-    page.url = "https://example.com"
-    page.title = "Example Page"
+# Real ARIA snapshot from example.com (Playwright output)
+EXAMPLE_COM_ARIA = """\
+- heading "Example Domain" [level=1]
+- paragraph: This domain is for use in illustrative examples in documents. You may use this domain in literature without prior coordination or asking for permission.
+- paragraph:
+  - link "More information..."
+"""
 
-    # Create a proper mock for locator -> aria_snapshot chain
-    mock_body_locator = MagicMock()
-    mock_body_locator.aria_snapshot.return_value = ""  # Default empty
-    page.locator.return_value = mock_body_locator
+# A more complex snapshot with multiple interactive elements
+COMPLEX_ARIA = """\
+- banner:
+  - navigation "Main":
+    - link "Home"
+    - link "About"
+    - link "Contact"
+- main:
+  - heading "Welcome" [level=1]
+  - textbox "Search"
+  - button "Go"
+  - checkbox "Remember me"
+  - link "Forgot password?"
+"""
 
-    return page
-
-
-@pytest.fixture
-def sample_aria_yaml() -> str:
-    """Sample ARIA snapshot YAML for testing."""
-    return """
-- role: link
-  name: "Home"
-  url: "https://example.com/"
-- role: link
-  name: "About"
-  url: "https://example.com/about"
-- role: textbox
-  name: "Search"
-  description: "Search box"
-- role: button
-  name: "Submit"
-  description: "Submit form"
+# Snapshot with nested structure
+NESTED_ARIA = """\
+- dialog "Login":
+  - textbox "Username"
+  - textbox "Password"
+  - button "Sign in"
+  - link "Reset password"
 """
 
 
-def test_browser_observe_returns_snapshot(
-    mock_page: MagicMock,
-    sample_aria_yaml: str,
-) -> None:
-    """Test that browser_observe returns a PageSnapshot."""
-    mock_page.locator.return_value.aria_snapshot.return_value = sample_aria_yaml
+class TestTraverseAriaTree:
+    def test_basic_string_items(self) -> None:
+        parsed = yaml.safe_load(EXAMPLE_COM_ARIA)
+        elements: list[dict] = []  # type: ignore[type-arg]
+        _traverse_aria_tree(parsed, elements)
+        roles = [e["role"] for e in elements]
+        assert "link" in roles
 
-    registry = ElementRegistry()
-    snapshot = browser_observe(mock_page, registry)
+    def test_skips_text_role(self) -> None:
+        parsed = yaml.safe_load(EXAMPLE_COM_ARIA)
+        elements: list[dict] = []  # type: ignore[type-arg]
+        _traverse_aria_tree(parsed, elements)
+        roles = [e["role"] for e in elements]
+        assert "text" not in roles
 
-    assert isinstance(snapshot, PageSnapshot)
-    assert snapshot.url == "https://example.com"
-    assert snapshot.title == "Example Page"
-    assert len(snapshot.interactive_elements) > 0
-    assert snapshot.version >= 0
+    def test_complex_snapshot_element_count(self) -> None:
+        parsed = yaml.safe_load(COMPLEX_ARIA)
+        elements: list[dict] = []  # type: ignore[type-arg]
+        _traverse_aria_tree(parsed, elements)
+        # Expected: Home, About, Contact (links), Search (textbox), Go (button),
+        # Remember me (checkbox), Forgot password? (link), navigation, main, banner
+        roles = [e["role"] for e in elements]
+        assert roles.count("link") == 4  # Home, About, Contact, Forgot password?
+        assert roles.count("button") == 1  # Go
+        assert roles.count("textbox") == 1  # Search
+        assert roles.count("checkbox") == 1  # Remember me
 
+    def test_nested_dialog(self) -> None:
+        parsed = yaml.safe_load(NESTED_ARIA)
+        elements: list[dict] = []  # type: ignore[type-arg]
+        _traverse_aria_tree(parsed, elements)
+        roles = [e["role"] for e in elements]
+        assert "dialog" in roles
+        assert roles.count("textbox") == 2  # Username, Password
+        assert roles.count("button") == 1  # Sign in
+        assert roles.count("link") == 1  # Reset password
 
-def test_browser_observe_registers_elements(
-    mock_page: MagicMock,
-    sample_aria_yaml: str,
-) -> None:
-    """Test that browser_observe registers elements in the registry."""
-    mock_page.locator.return_value.aria_snapshot.return_value = sample_aria_yaml
+    def test_extracts_names(self) -> None:
+        parsed = yaml.safe_load(NESTED_ARIA)
+        elements: list[dict] = []  # type: ignore[type-arg]
+        _traverse_aria_tree(parsed, elements)
+        names = [e["name"] for e in elements]
+        assert "Username" in names
+        assert "Password" in names
+        assert "Sign in" in names
 
-    registry = ElementRegistry()
-    snapshot = browser_observe(mock_page, registry)
+    def test_skips_metadata_keys(self) -> None:
+        # Simulate a snapshot with /url metadata
+        data = yaml.safe_load('- link "Test"')
+        # Wrap in a dict with /url key
+        wrapped = {"/url": "https://example.com", "main": data}
+        elements: list[dict] = []  # type: ignore[type-arg]
+        _traverse_aria_tree(wrapped, elements)
+        names = [e.get("name") for e in elements]
+        # Should find "Test" link but not process /url
+        assert "Test" in names
 
-    # Should have registered some elements
-    assert len(snapshot.interactive_elements) > 0
+    def test_empty_yaml_returns_empty(self) -> None:
+        parsed = yaml.safe_load("")
+        elements: list[dict] = []  # type: ignore[type-arg]
+        _traverse_aria_tree(parsed, elements)
+        assert elements == []
 
-    # Check that elements have ref IDs
-    for elem in snapshot.interactive_elements:
-        assert elem.ref.startswith("elem-")
-
-
-def test_browser_observe_limits_elements(
-    mock_page: MagicMock,
-    sample_aria_yaml: str,
-) -> None:
-    """Test that browser_observe respects max_elements parameter."""
-    mock_page.locator.return_value.aria_snapshot.return_value = sample_aria_yaml
-
-    registry = ElementRegistry()
-    snapshot = browser_observe(mock_page, registry, max_elements=2)
-
-    # Should limit to 2 elements
-    assert len(snapshot.interactive_elements) <= 2
-
-
-def test_browser_observe_includes_screenshot_path(
-    mock_page: MagicMock,
-    sample_aria_yaml: str,
-    tmp_path: Path,
-) -> None:
-    """Test that browser_observe includes screenshot path when provided."""
-    mock_page.locator.return_value.aria_snapshot.return_value = sample_aria_yaml
-
-    registry = ElementRegistry()
-    screenshot_path = tmp_path / "test_screenshot.png"
-
-    snapshot = browser_observe(
-        mock_page,
-        registry,
-        screenshot_path=str(screenshot_path),
-    )
-
-    assert snapshot.screenshot_path == str(screenshot_path)
-
-
-def test_extract_interactive_elements_parses_yaml() -> None:
-    """Test that _extract_interactive_elements parses ARIA YAML correctly."""
-    yaml = """
-- role: link
-  name: "Home"
-- role: button
-  name: "Click Me"
-"""
-
-    elements = _extract_interactive_elements(yaml, max_elements=10)
-
-    assert len(elements) == 2
-    # Note: Elements are sorted by priority, so button comes before link
-    assert elements[0].role == "button"
-    assert elements[0].name == "Click Me"
-    assert elements[1].role == "link"
-    assert elements[1].name == "Home"
+    def test_none_input(self) -> None:
+        elements: list[dict] = []  # type: ignore[type-arg]
+        _traverse_aria_tree(None, elements)
+        assert elements == []
 
 
-def test_extract_interactive_elements_respects_max_elements() -> None:
-    """Test that _extract_interactive_elements respects max_elements limit."""
-    yaml = """
-- role: link
-  name: "Link 1"
-- role: link
-  name: "Link 2"
-- role: link
-  name: "Link 3"
-"""
+class TestExtractInteractiveElements:
+    def test_example_com(self) -> None:
+        elements = _extract_interactive_elements(EXAMPLE_COM_ARIA, max_elements=60)
+        assert len(elements) >= 1
+        link_elem = next(e for e in elements if e.role == "link")
+        assert "More information" in link_elem.name
 
-    elements = _extract_interactive_elements(yaml, max_elements=2)
+    def test_complex_snapshot(self) -> None:
+        elements = _extract_interactive_elements(COMPLEX_ARIA, max_elements=60)
+        roles = [e.role for e in elements]
+        assert "button" in roles
+        assert "textbox" in roles
+        assert "link" in roles
 
-    assert len(elements) == 2
+    def test_max_elements_limit(self) -> None:
+        elements = _extract_interactive_elements(COMPLEX_ARIA, max_elements=2)
+        assert len(elements) <= 2
+
+    def test_elements_have_refs(self) -> None:
+        elements = _extract_interactive_elements(COMPLEX_ARIA, max_elements=60)
+        refs = [e.ref for e in elements]
+        for i, ref in enumerate(refs):
+            assert ref == f"elem-{i}"
+
+    def test_sorted_by_priority(self) -> None:
+        elements = _extract_interactive_elements(COMPLEX_ARIA, max_elements=60)
+        # Buttons (priority 10) should come before navigation (priority 1)
+        if len(elements) >= 2:
+            button_idx = next(
+                (i for i, e in enumerate(elements) if e.role == "button"), None
+            )
+            nav_idx = next(
+                (i for i, e in enumerate(elements) if e.role == "navigation"), None
+            )
+            if button_idx is not None and nav_idx is not None:
+                assert button_idx < nav_idx
+
+    def test_invalid_yaml_returns_empty(self) -> None:
+        elements = _extract_interactive_elements(":::invalid yaml{{[", max_elements=60)
+        assert elements == []
+
+    def test_bbox_is_none(self) -> None:
+        elements = _extract_interactive_elements(EXAMPLE_COM_ARIA, max_elements=60)
+        for elem in elements:
+            assert elem.bbox is None

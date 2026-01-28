@@ -5,9 +5,10 @@ element references by ID, enabling the agent to act on elements
 without using hardcoded selectors.
 """
 
-from dataclasses import dataclass, field
+from typing import Any, cast
 
-from playwright.sync_api import Locator, Page
+from pydantic import BaseModel, ConfigDict
+from playwright.async_api import Locator, Page
 
 from browser_agent.models.element import InteractiveElement
 
@@ -16,13 +17,6 @@ class StaleElementError(Exception):
     """Raised when attempting to use a stale element reference."""
 
     def __init__(self, element_ref: str, snapshot_version: int, current_version: int) -> None:
-        """Initialize the stale element error.
-
-        Args:
-            element_ref: The reference ID of the stale element.
-            snapshot_version: The snapshot version when the element was captured.
-            current_version: The current snapshot version.
-        """
         self.element_ref = element_ref
         self.snapshot_version = snapshot_version
         self.current_version = current_version
@@ -33,29 +27,20 @@ class StaleElementError(Exception):
         )
 
 
-@dataclass
-class RegistryEntry:
-    """A single entry in the element registry.
+class RegistryEntry(BaseModel):
+    """A single entry in the element registry."""
 
-    Attributes:
-        element: The interactive element this entry represents.
-        snapshot_version: The snapshot version when this element was registered.
-        selector: The CSS selector used to locate this element.
-    """
+    model_config = ConfigDict(frozen=True)
 
     element: InteractiveElement
     snapshot_version: int
-    selector: str
+    nth: int
 
 
-@dataclass
-class ObservationResult:
-    """Result of a page observation operation.
+class ObservationResult(BaseModel):
+    """Result of a page observation operation."""
 
-    Attributes:
-        elements: List of interactive elements found during observation.
-        snapshot_version: The version number of this snapshot.
-    """
+    model_config = ConfigDict(frozen=True)
 
     elements: list[InteractiveElement]
     snapshot_version: int
@@ -67,24 +52,10 @@ class ElementRegistry:
     The registry assigns unique reference IDs to elements during page
     observation and tracks which snapshot version each element belongs to.
     When an action is requested, the registry validates that the element
-    reference is not stale and provides a Playwright Locator.
-
-    Example:
-        registry = ElementRegistry()
-
-        # During observation, register elements
-        page.goto("https://example.com")
-        result = registry.register_from_page(page, version=1)
-
-        # Get a locator for an element
-        locator = registry.get_locator(page, "elem-0")
-
-        # After page change, increment version
-        registry.increment_version()
+    reference is not stale and provides a Playwright Locator via get_by_role.
     """
 
     def __init__(self) -> None:
-        """Initialize a new element registry."""
         self._entries: dict[str, RegistryEntry] = {}
         self._current_version: int = 0
 
@@ -94,60 +65,44 @@ class ElementRegistry:
         return self._current_version
 
     def increment_version(self) -> int:
-        """Increment the snapshot version.
-
-        This marks all existing entries as stale (their snapshot_version
-        will be less than current_version). The entries are NOT removed -
-        they remain in the registry but will be rejected by get_locator()
-        and get_element() due to version mismatch.
-
-        Returns:
-            The new version number.
-        """
-        # Only keep entries from the current version before incrementing
-        # This removes any stale entries that might have been manually added
+        """Increment the snapshot version, marking all existing entries as stale."""
         self._entries = {
             ref: entry
             for ref, entry in self._entries.items()
             if entry.snapshot_version == self._current_version
         }
-        # Now increment - existing entries are marked as stale
         self._current_version += 1
         return self._current_version
 
     def register_elements(
         self,
         elements: list[InteractiveElement],
-        selectors: list[str],
     ) -> ObservationResult:
         """Register a batch of elements from a page observation.
 
+        Groups elements by (role, name) to compute nth index for disambiguation.
+
         Args:
             elements: List of interactive elements to register.
-            selectors: List of CSS selectors corresponding to each element.
 
         Returns:
             An ObservationResult containing the elements and snapshot version.
-
-        Raises:
-            ValueError: If elements and selectors have different lengths.
         """
-        if len(elements) != len(selectors):
-            raise ValueError(
-                f"Elements ({len(elements)}) and selectors ({len(selectors)}) "
-                "must have the same length"
-            )
-
-        # Clear ALL entries from current version before adding new ones
         self._entries.clear()
 
-        # Add new entries
-        for i, (element, selector) in enumerate(zip(elements, selectors)):
+        # Group by (role, name) to compute nth index
+        role_name_counts: dict[tuple[str, str], int] = {}
+
+        for i, element in enumerate(elements):
+            key = (element.role, element.name)
+            nth = role_name_counts.get(key, 0)
+            role_name_counts[key] = nth + 1
+
             ref = f"elem-{i}"
             self._entries[ref] = RegistryEntry(
                 element=element,
                 snapshot_version=self._current_version,
-                selector=selector,
+                nth=nth,
             )
 
         return ObservationResult(
@@ -156,7 +111,7 @@ class ElementRegistry:
         )
 
     def get_locator(self, page: Page, element_ref: str) -> Locator:
-        """Get a Playwright Locator for an element reference.
+        """Get a Playwright Locator for an element reference using get_by_role.
 
         Args:
             page: The Playwright Page object.
@@ -184,7 +139,10 @@ class ElementRegistry:
                 current_version=self._current_version,
             )
 
-        return page.locator(entry.selector)
+        if entry.element.name:
+            return page.get_by_role(cast(Any, entry.element.role), name=entry.element.name).nth(entry.nth)
+        else:
+            return page.get_by_role(cast(Any, entry.element.role)).nth(entry.nth)
 
     def get_element(self, element_ref: str) -> InteractiveElement:
         """Get the InteractiveElement for a reference.

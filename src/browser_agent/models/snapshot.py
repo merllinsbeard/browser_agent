@@ -4,15 +4,12 @@ This module defines the PageSnapshot model which represents
 the current state of a web page for agent observation.
 """
 
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Literal
+from pydantic import BaseModel, ConfigDict
 
 from browser_agent.models.element import InteractiveElement
 
 
-@dataclass(frozen=True)
-class PageSnapshot:
+class PageSnapshot(BaseModel):
     """A snapshot of the current page state.
 
     This represents a compact view of the page for the agent to use
@@ -29,12 +26,14 @@ class PageSnapshot:
         version: Snapshot version for element validation (increments on new observation).
     """
 
+    model_config = ConfigDict(frozen=True)
+
     url: str
     title: str
-    interactive_elements: list[InteractiveElement] = field(default_factory=list)
+    interactive_elements: list[InteractiveElement] = []
     visible_text_excerpt: str = ""
-    screenshot_path: Path | None = None
-    notes: list[str] = field(default_factory=list)
+    screenshot_path: str | None = None
+    notes: list[str] = []
     version: int = 0
 
     def with_version(self, new_version: int) -> "PageSnapshot":

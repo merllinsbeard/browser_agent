@@ -6,10 +6,47 @@ This module provides LLM client setup for OpenRouter API integration.
 import os
 from typing import Any
 
-from openai import OpenAI, OpenAIError
+from openai import AsyncOpenAI, OpenAI
+
+from agents import set_default_openai_client
+from agents.models.openai_provider import OpenAIProvider
+
+from browser_agent.core.logging import ErrorIds, logError
 
 # Default model to use on OpenRouter
 DEFAULT_MODEL = "anthropic/claude-3.5-sonnet"
+
+# Default model for OpenAI Agents SDK usage
+DEFAULT_SDK_MODEL = "google/gemini-2.5-flash"
+
+
+def setup_openrouter_for_sdk() -> OpenAIProvider:
+    """Configure the OpenAI Agents SDK to use OpenRouter as the LLM backend.
+
+    Creates an AsyncOpenAI client pointed at OpenRouter's OpenAI-compatible API,
+    sets it as the SDK default, and returns an OpenAIProvider that bypasses
+    the SDK's MultiProvider prefix parsing (which would strip the provider
+    prefix from model names like 'google/gemini-...' that OpenRouter needs).
+
+    Returns:
+        An OpenAIProvider configured for OpenRouter with chat completions mode.
+
+    Raises:
+        ValueError: If OPENROUTER_API_KEY is not set.
+    """
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "OPENROUTER_API_KEY environment variable must be set. "
+            "Get one at https://openrouter.ai/keys"
+        )
+
+    client = AsyncOpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=api_key,
+    )
+    set_default_openai_client(client)
+    return OpenAIProvider(openai_client=client, use_responses=False)
 
 
 def get_openrouter_client() -> OpenAI:
@@ -53,8 +90,6 @@ def call_llm(
     Returns:
         The LLM's response text.
 
-    Raises:
-        OpenAIError: If the API call fails.
     """
     if model is None:
         model = DEFAULT_MODEL
@@ -68,6 +103,11 @@ def call_llm(
             temperature=temperature,
             max_tokens=max_tokens,
         )
-        return response.choices[0].message.content or ""
-    except OpenAIError as e:
+    except Exception as e:
+        logError(ErrorIds.LLM_API_ERROR, f"LLM API call failed: {e}", exc_info=True)
         raise
+
+    if not response.choices:
+        logError(ErrorIds.LLM_MALFORMED_RESPONSE, "LLM returned empty choices list")
+        return ""
+    return response.choices[0].message.content or ""
