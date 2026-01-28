@@ -137,3 +137,23 @@ Started: Tue Jan 27 23:01:18 MSK 2026
   - `shutil.rmtree()` works for cleaning browser session cache directories
   - When deleting a module (context.py), also check scripts/ (eval.py used ContextTracker) — not just src/ __init__.py
 ---
+
+## 2026-01-28 04:30 - US-012
+- **What was implemented**: New test suite covering models, tools, and core modules (77 tests)
+- **Files changed**:
+  - `tests/__init__.py`, `tests/conftest.py` — test directory setup with shared fixtures
+  - `tests/models/__init__.py`, `tests/models/test_element.py` — BoundingBox and InteractiveElement tests (6 tests)
+  - `tests/models/test_snapshot.py` — PageSnapshot tests (7 tests)
+  - `tests/models/test_result.py` — SuccessResult/FailureResult and factory function tests (12 tests)
+  - `tests/tools/__init__.py`, `tests/tools/test_observe.py` — ARIA snapshot parser tests with real data (15 tests)
+  - `tests/tools/test_safety.py` — is_destructive_action tests for all keywords and edge cases (18 tests)
+  - `tests/core/__init__.py`, `tests/core/test_registry.py` — ElementRegistry tests with mock Page (14 tests)
+  - `scripts/ralph/prd.json` — marked US-012 as passes: true
+- **Verification**: `uv run pytest tests/ -v` — 77 passed in 0.04s. `uv run mypy src/ tests/` — 0 issues in 41 files.
+- **Learnings for future iterations:**
+  - `increment_version()` keeps entries but bumps `_current_version`, so entries become stale (raise `StaleElementError`) — they are NOT removed from `_entries`
+  - Use `unittest.mock.MagicMock` to mock Playwright `Page` for `get_locator()` tests — mock `page.get_by_role().nth()` chain and `page.locator().nth()` chain
+  - `yaml` import needs `# type: ignore[import-untyped]` for mypy — use at top of file, not inline in test methods
+  - ARIA snapshot test data: use triple-quoted YAML strings matching real Playwright output format for realistic integration tests
+  - Pydantic frozen models raise `ValidationError` (not `AttributeError`) on mutation attempts
+---
