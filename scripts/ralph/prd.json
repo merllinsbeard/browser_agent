@@ -213,8 +213,8 @@
         "Typecheck passes: uv run mypy src/ scripts/"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: Rewrote scripts/run.py as fully async — async def main() with asyncio.run(). Uses async_playwright() + launch_persistent_context_async() for browser, setup_openrouter_for_sdk() for LLM, create_browser_tools/create_navigator_agent/create_planner_agent for SDK agents, Runner.run(planner, task, max_turns=30) for ReAct execution. Handles MaxTurnsExceeded with warning panel. Added --clean-cache flag (shutil.rmtree). Kept Rich console output, Ctrl+C browser-open behavior. Deleted core/context.py (ContextTracker), removed from core/__init__.py. Updated eval.py to remove broken old imports (placeholder for US-013). mypy clean (0 issues in 33 files), --help works."
     },
     {
       "id": "US-012",

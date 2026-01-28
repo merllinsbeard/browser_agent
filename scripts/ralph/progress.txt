@@ -12,6 +12,8 @@ Started: Tue Jan 27 23:01:18 MSK 2026
 - `@function_tool` from `agents` SDK works inside factory closures — each decorated function captures page/registry via closure.
 - For async tools that call sync Playwright registry methods, use `cast(Any, page)` for the page arg and `locator: Any` for the returned locator.
 - Safety checks in `browser_click`/`browser_type`: get element FIRST via `registry.get_element()`, check `is_destructive_action(f'{role} {name}')`, confirm with user if destructive.
+- `Runner.run(agent, input, max_turns=N)` from `agents` SDK is the main async entry point. Returns `RunResult` with `.final_output`. Catch `MaxTurnsExceeded` from `agents.exceptions`.
+- Async Playwright: use `await async_playwright().start()` (returns pw), then `await pw.stop()` in finally. NOT a context manager.
 
 ---
 
@@ -117,4 +119,21 @@ Started: Tue Jan 27 23:01:18 MSK 2026
   - `is_destructive_action()` splits on whitespace and checks against a frozenset of keywords — simple but effective
   - In `browser_click`/`browser_type`, get the element BEFORE acting (via `registry.get_element()`) to check safety — previously element was retrieved after the action
   - `ask_user_confirmation()` uses `rich.prompt.Confirm` wrapped in `asyncio.to_thread()` for async compatibility (same pattern as `ask_user` tool)
+---
+
+## 2026-01-28 04:20 - US-011
+- **What was implemented**: Async run.py with Runner.run() — full rewrite from sync linear executor to async SDK ReAct loop
+- **Files changed**:
+  - `scripts/run.py` — complete rewrite: async def main() with asyncio.run(), async_playwright(), launch_persistent_context_async(), setup_openrouter_for_sdk(), create_browser_tools/agents, Runner.run(planner, task, max_turns=30), MaxTurnsExceeded handling, --clean-cache flag
+  - `scripts/eval.py` — removed broken old imports (PlannerAgent, NavigatorAgent, SafetyAgent, ContextTracker, StuckDetector), replaced with placeholder for US-013
+  - `src/browser_agent/core/context.py` — deleted (ContextTracker no longer needed, SDK manages context)
+  - `src/browser_agent/core/__init__.py` — removed ContextTracker import and __all__ entry
+  - `scripts/ralph/prd.json` — marked US-011 as passes: true
+- **Verification**: `uv run python scripts/run.py --help` works (shows all args including --clean-cache). `uv run python -c "import browser_agent"` succeeds. mypy clean (0 issues in 33 files).
+- **Learnings for future iterations:**
+  - `Runner.run(agent, input, max_turns=N)` is the main SDK entry point — returns a `RunResult` with `.final_output` property
+  - `MaxTurnsExceeded` is importable from `agents.exceptions` — raised when the agent exceeds the turn limit
+  - async Playwright requires `await async_playwright().start()` (not a context manager) — must call `await pw.stop()` in finally block
+  - `shutil.rmtree()` works for cleaning browser session cache directories
+  - When deleting a module (context.py), also check scripts/ (eval.py used ContextTracker) — not just src/ __init__.py
 ---
