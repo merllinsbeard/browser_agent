@@ -6,7 +6,7 @@ This module provides LLM client setup for OpenRouter API integration.
 import os
 from typing import Any
 
-from openai import AsyncOpenAI, OpenAI, OpenAIError
+from openai import AsyncOpenAI, OpenAI
 
 from agents import set_default_openai_client
 from agents.models.openai_provider import OpenAIProvider
@@ -88,21 +88,18 @@ def call_llm(
     Returns:
         The LLM's response text.
 
-    Raises:
-        OpenAIError: If the API call fails.
     """
     if model is None:
         model = DEFAULT_MODEL
 
     client = get_openrouter_client()
 
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,  # type: ignore[arg-type]
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-        return response.choices[0].message.content or ""
-    except OpenAIError as e:
-        raise
+    response = client.chat.completions.create(
+        model=model,
+        messages=messages,  # type: ignore[arg-type]
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+    if not response.choices:
+        return ""
+    return response.choices[0].message.content or ""

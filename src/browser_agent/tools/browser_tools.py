@@ -11,12 +11,13 @@ from typing import Any, cast
 from agents import function_tool
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 
+from browser_agent.core.logging import ErrorIds, logError, logForDebugging
 from browser_agent.core.registry import ElementRegistry, StaleElementError
 from browser_agent.tools.observe import _extract_interactive_elements
 from browser_agent.tools.safety import ask_user_confirmation, is_destructive_action
 
 
-def create_browser_tools(page: Page, registry: ElementRegistry) -> list[Any]:
+def create_browser_tools(page: Page, registry: ElementRegistry, auto_approve: bool = False) -> list[Any]:
     """Create browser tools as @function_tool decorated async functions.
 
     Each tool is a closure that captures the async Playwright Page and
@@ -26,6 +27,7 @@ def create_browser_tools(page: Page, registry: ElementRegistry) -> list[Any]:
     Args:
         page: The async Playwright Page object.
         registry: The ElementRegistry for managing element references.
+        auto_approve: If True, skip user confirmation for destructive actions.
 
     Returns:
         A list of FunctionTool instances for the SDK agent.
@@ -56,7 +58,12 @@ def create_browser_tools(page: Page, registry: ElementRegistry) -> list[Any]:
             text = " ".join(text.split())
             if len(text) > 3000:
                 text = text[:3000] + "..."
-        except Exception:
+        except Exception as e:
+            logError(
+                ErrorIds.VISIBLE_TEXT_EXTRACTION_FAILED,
+                f"Failed to extract visible text: {e}",
+                exc_info=True,
+            )
             text = ""
 
         # Format output for the LLM
@@ -87,19 +94,24 @@ def create_browser_tools(page: Page, registry: ElementRegistry) -> list[Any]:
             # Safety check: confirm before destructive actions
             action_desc = f"{element.role} {element.name}"
             if is_destructive_action(action_desc):
-                confirmed = await ask_user_confirmation(action_desc)
+                confirmed = await ask_user_confirmation(action_desc, auto_approve=auto_approve)
                 if not confirmed:
                     return "Action blocked by user"
             locator: Any = registry.get_locator(cast(Any, page), element_id)
             await locator.click(timeout=30000)
+            logForDebugging(f'Clicked [{element.role}] "{element.name}" ({element_id})')
             return f'Clicked [{element.role}] "{element.name}" ({element_id})'
         except StaleElementError as e:
+            logError(ErrorIds.STALE_ELEMENT_REFERENCE, str(e), extra={"element_id": element_id})
             return f"Error: {e}. Call browser_observe() to get fresh element references."
         except KeyError as e:
+            logError(ErrorIds.ELEMENT_NOT_FOUND, str(e), extra={"element_id": element_id})
             return f"Error: {e}"
         except PlaywrightTimeoutError:
+            logError(ErrorIds.CLICK_TIMEOUT, f"Timeout clicking {element_id}", extra={"element_id": element_id})
             return f"Error: Timeout clicking {element_id}. The element may be hidden or not clickable. Try browser_observe() to refresh."
         except Exception as e:
+            logError(ErrorIds.ELEMENT_INTERACTION_FAILED, f"Error clicking {element_id}: {e}", exc_info=True)
             return f"Error clicking {element_id}: {e}"
 
     @function_tool
@@ -115,19 +127,24 @@ def create_browser_tools(page: Page, registry: ElementRegistry) -> list[Any]:
             # Safety check: confirm before destructive actions
             action_desc = f"{element.role} {element.name}"
             if is_destructive_action(action_desc):
-                confirmed = await ask_user_confirmation(action_desc)
+                confirmed = await ask_user_confirmation(action_desc, auto_approve=auto_approve)
                 if not confirmed:
                     return "Action blocked by user"
             locator: Any = registry.get_locator(cast(Any, page), element_id)
             await locator.fill(text, timeout=30000)
+            logForDebugging(f'Typed into [{element.role}] "{element.name}" ({element_id})')
             return f'Typed "{text}" into [{element.role}] "{element.name}" ({element_id})'
         except StaleElementError as e:
+            logError(ErrorIds.STALE_ELEMENT_REFERENCE, str(e), extra={"element_id": element_id})
             return f"Error: {e}. Call browser_observe() to get fresh element references."
         except KeyError as e:
+            logError(ErrorIds.ELEMENT_NOT_FOUND, str(e), extra={"element_id": element_id})
             return f"Error: {e}"
         except PlaywrightTimeoutError:
+            logError(ErrorIds.TYPE_TIMEOUT, f"Timeout typing into {element_id}", extra={"element_id": element_id})
             return f"Error: Timeout typing into {element_id}. The element may not be editable."
         except Exception as e:
+            logError(ErrorIds.ELEMENT_INTERACTION_FAILED, f"Error typing into {element_id}: {e}", exc_info=True)
             return f"Error typing into {element_id}: {e}"
 
     @function_tool
@@ -138,9 +155,19 @@ def create_browser_tools(page: Page, registry: ElementRegistry) -> list[Any]:
             key: The key to press (e.g., 'Enter', 'Tab', 'Escape', 'ArrowDown', 'Backspace', 'Space').
         """
         try:
+            # Enter key can trigger form submission — apply safety check
+            if key.lower() == "enter":
+                title = await page.title()
+                action_desc = f"press Enter on {title}"
+                if is_destructive_action(action_desc):
+                    confirmed = await ask_user_confirmation(action_desc, auto_approve=auto_approve)
+                    if not confirmed:
+                        return "Action blocked by user"
             await page.keyboard.press(key)
+            logForDebugging(f"Pressed key: {key}")
             return f"Pressed key: {key}"
         except Exception as e:
+            logError(ErrorIds.ELEMENT_INTERACTION_FAILED, f"Error pressing key {key}: {e}", exc_info=True)
             return f"Error pressing key {key}: {e}"
 
     @function_tool
@@ -153,8 +180,10 @@ def create_browser_tools(page: Page, registry: ElementRegistry) -> list[Any]:
         try:
             delta = -500 if direction.lower() == "up" else 500
             await page.mouse.wheel(0, delta)
+            logForDebugging(f"Scrolled {direction} by 500px")
             return f"Scrolled {direction} by 500px"
         except Exception as e:
+            logError(ErrorIds.ELEMENT_INTERACTION_FAILED, f"Error scrolling {direction}: {e}", exc_info=True)
             return f"Error scrolling {direction}: {e}"
 
     @function_tool
@@ -169,15 +198,20 @@ def create_browser_tools(page: Page, registry: ElementRegistry) -> list[Any]:
             # Navigation changes the page — old element refs are stale
             registry.increment_version()
             if response is None:
+                logForDebugging(f"Navigated to {url}")
                 return f"Navigated to {url}"
             status = response.status
             if 200 <= status < 400:
+                logForDebugging(f"Navigated to {url} (status: {status})")
                 return f"Navigated to {url} (status: {status})"
             else:
+                logForDebugging(f"Navigation to {url} returned HTTP {status}", level="warning")
                 return f"Navigation to {url} returned HTTP {status}"
         except PlaywrightTimeoutError:
+            logError(ErrorIds.NAVIGATION_FAILED, f"Timeout navigating to {url}", extra={"url": url})
             return f"Error: Timeout navigating to {url}. The page may be slow to load."
         except Exception as e:
+            logError(ErrorIds.NAVIGATION_FAILED, f"Error navigating to {url}: {e}", exc_info=True)
             return f"Error navigating to {url}: {e}"
 
     @function_tool

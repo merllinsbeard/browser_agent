@@ -60,10 +60,8 @@ class TestElementRegistry:
         self, registry: ElementRegistry, elements: list[InteractiveElement]
     ) -> None:
         registry.register_elements(elements)
-        # Manually increment without re-registering
-        # increment_version keeps entries with current version before incrementing
-        # So entries at version 0 survive, but their snapshot_version (0) != new current (1)
-        registry._current_version = 1  # Simulate version change without clearing
+        # Use the public API to increment version
+        registry.increment_version()
         with pytest.raises(StaleElementError) as exc_info:
             registry.get_element("elem-0")
         assert exc_info.value.element_ref == "elem-0"
@@ -96,7 +94,7 @@ class TestElementRegistry:
 
         locator = registry.get_locator(mock_page, "elem-3")
 
-        mock_page.locator.assert_called_once_with("[role=textbox]")
+        mock_page.locator.assert_called_once_with('[role="textbox"]')
         mock_page.locator.return_value.nth.assert_called_once_with(0)
         assert locator == mock_locator
 

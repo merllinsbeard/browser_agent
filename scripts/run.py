@@ -20,6 +20,7 @@ from browser_agent.core import (
     launch_persistent_context_async,
     setup_openrouter_for_sdk,
 )
+from browser_agent.core.logging import ErrorIds, logError, logEvent
 from browser_agent.tools import create_browser_tools
 from rich.console import Console
 from rich.panel import Panel
@@ -99,6 +100,7 @@ async def main() -> None:
 
     # Launch browser (async)
     pw = await async_playwright().start()
+    context = None
     try:
         console.print("\n[yellow]Launching browser...[/yellow]")
         context = await launch_persistent_context_async(
@@ -115,17 +117,19 @@ async def main() -> None:
 
         # Initialize agent components
         registry = ElementRegistry()
-        tools = create_browser_tools(page, registry)
+        tools = create_browser_tools(page, registry, auto_approve=args.auto_approve)
 
         # Create agents: Navigator (has tools) -> Planner (hands off to Navigator)
         navigator = create_navigator_agent(tools)
         planner = create_planner_agent(navigator)
 
         # Run the ReAct loop
+        logEvent("agent_start", {"task": task})
         console.print("\n[yellow]Starting agent...[/yellow]")
         try:
             run_config = RunConfig(model_provider=model_provider)
             result = await Runner.run(planner, task, max_turns=30, run_config=run_config)
+            logEvent("agent_complete", {"task": task, "output": str(result.final_output)[:200]})
             console.print("\n")
             console.print(Panel(
                 f"[bold green]Task Complete![/bold green]\n\n"
@@ -133,6 +137,7 @@ async def main() -> None:
                 title="Summary"
             ))
         except MaxTurnsExceeded:
+            logEvent("agent_max_turns", {"task": task, "max_turns": 30})
             console.print("\n")
             console.print(Panel(
                 "[bold yellow]Agent reached the maximum turn limit (30 turns).[/bold yellow]\n\n"
@@ -151,13 +156,14 @@ async def main() -> None:
             except KeyboardInterrupt:
                 console.print("\n[yellow]Shutting down...[/yellow]")
 
-        await context.close()
-
     except Exception as e:
+        logError(ErrorIds.UNEXPECTED_ERROR, f"Run script error: {e}", exc_info=True)
         console.print(f"\n[red]Error: {e}[/red]")
         import traceback
         console.print(f"[dim]{traceback.format_exc()}[/dim]")
     finally:
+        if context is not None:
+            await context.close()
         await pw.stop()
 
 

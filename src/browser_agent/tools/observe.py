@@ -10,6 +10,7 @@ from typing import Any
 import yaml  # type: ignore[import-untyped]
 from playwright.sync_api import Page
 
+from browser_agent.core.logging import ErrorIds, logError
 from browser_agent.core.registry import ElementRegistry
 from browser_agent.models.element import BoundingBox, InteractiveElement
 from browser_agent.models.snapshot import PageSnapshot
@@ -115,8 +116,12 @@ def _extract_interactive_elements(aria_yaml: str, max_elements: int) -> list[Int
     """
     try:
         parsed = yaml.safe_load(aria_yaml)
-    except yaml.YAMLError:
-        # If YAML parsing fails, return empty list
+    except yaml.YAMLError as e:
+        logError(
+            ErrorIds.ARIA_SNAPSHOT_PARSE_FAILED,
+            f"Failed to parse ARIA snapshot YAML: {e}",
+            exc_info=True,
+        )
         return []
 
     elements: list[dict[str, Any]] = []
@@ -245,5 +250,10 @@ def _get_visible_text(page: Page, max_length: int) -> str:
         if len(text) > max_length:
             text = text[:max_length] + "..."
         return text
-    except Exception:
+    except Exception as e:
+        logError(
+            ErrorIds.VISIBLE_TEXT_EXTRACTION_FAILED,
+            f"Failed to extract visible text: {e}",
+            exc_info=True,
+        )
         return ""

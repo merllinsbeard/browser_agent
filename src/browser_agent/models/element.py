@@ -55,6 +55,14 @@ class InteractiveElement(BaseModel):
     ref: str
     role: str
     name: str = ""
+
+    @field_validator("ref", "role")
+    @classmethod
+    def must_not_be_empty(cls, v: str) -> str:
+        """Validate that ref and role are not empty strings."""
+        if not v:
+            raise ValueError("must not be empty")
+        return v
     aria_label: str | None = None
     placeholder: str | None = None
     value_preview: str | None = None

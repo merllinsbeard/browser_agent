@@ -18,6 +18,9 @@ _DESTRUCTIVE_KEYWORDS = frozenset({
     "purchase",
     "buy",
     "order",
+    "send",
+    "apply",
+    "trash",
 })
 
 
@@ -36,7 +39,7 @@ def is_destructive_action(action_description: str) -> bool:
     return any(word in _DESTRUCTIVE_KEYWORDS for word in words)
 
 
-async def ask_user_confirmation(action_description: str) -> bool:
+async def ask_user_confirmation(action_description: str, auto_approve: bool = False) -> bool:
     """Ask the user to confirm a destructive action.
 
     Prints the action description and prompts yes/no in the terminal.
@@ -44,20 +47,27 @@ async def ask_user_confirmation(action_description: str) -> bool:
 
     Args:
         action_description: Human-readable description of the action.
+        auto_approve: If True, skip the prompt and return True immediately.
 
     Returns:
-        True if the user confirms, False otherwise.
+        True if the user confirms (or auto_approve is True), False otherwise.
     """
+    if auto_approve:
+        return True
+
     from rich.console import Console
     from rich.prompt import Confirm
 
     console = Console()
 
     def _prompt() -> bool:
-        console.print(
-            f"\n[bold red]⚠ Safety Check:[/bold red] "
-            f"The agent wants to interact with: [bold]{action_description}[/bold]"
-        )
-        return Confirm.ask("[bold yellow]Allow this action?[/bold yellow]", default=False)
+        try:
+            console.print(
+                f"\n[bold red]⚠ Safety Check:[/bold red] "
+                f"The agent wants to interact with: [bold]{action_description}[/bold]"
+            )
+            return Confirm.ask("[bold yellow]Allow this action?[/bold yellow]", default=False)
+        except (EOFError, KeyboardInterrupt):
+            return False
 
     return await asyncio.to_thread(_prompt)

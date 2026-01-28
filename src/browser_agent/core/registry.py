@@ -30,12 +30,10 @@ class StaleElementError(Exception):
 class RegistryEntry(BaseModel):
     """A single entry in the element registry."""
 
-    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+    model_config = ConfigDict(frozen=True)
 
     element: InteractiveElement
     snapshot_version: int
-    role: str
-    name: str
     nth: int
 
 
@@ -104,8 +102,6 @@ class ElementRegistry:
             self._entries[ref] = RegistryEntry(
                 element=element,
                 snapshot_version=self._current_version,
-                role=element.role,
-                name=element.name,
                 nth=nth,
             )
 
@@ -143,10 +139,10 @@ class ElementRegistry:
                 current_version=self._current_version,
             )
 
-        if entry.name:
-            return page.get_by_role(cast(Any, entry.role), name=entry.name).nth(entry.nth)
+        if entry.element.name:
+            return page.get_by_role(cast(Any, entry.element.role), name=entry.element.name).nth(entry.nth)
         else:
-            return page.locator(f"[role={entry.role}]").nth(entry.nth)
+            return page.locator(f'[role="{entry.element.role}"]').nth(entry.nth)
 
     def get_element(self, element_ref: str) -> InteractiveElement:
         """Get the InteractiveElement for a reference.
