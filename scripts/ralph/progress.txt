@@ -14,6 +14,8 @@ Started: Tue Jan 27 23:01:18 MSK 2026
 - Safety checks in `browser_click`/`browser_type`: get element FIRST via `registry.get_element()`, check `is_destructive_action(f'{role} {name}')`, confirm with user if destructive.
 - `Runner.run(agent, input, max_turns=N)` from `agents` SDK is the main async entry point. Returns `RunResult` with `.final_output`. Catch `MaxTurnsExceeded` from `agents.exceptions`.
 - Async Playwright: use `await async_playwright().start()` (returns pw), then `await pw.stop()` in finally. NOT a context manager.
+- SDK MultiProvider strips model prefixes (e.g., `google/` from `google/gemini-...`). To use OpenRouter model names, bypass MultiProvider by using `OpenAIProvider(openai_client=client, use_responses=False)` in `RunConfig(model_provider=...)`.
+- OpenRouter model IDs rotate — preview suffixes like `-preview-05-20` expire. Use stable IDs like `google/gemini-2.5-flash`.
 
 ---
 
@@ -156,4 +158,20 @@ Started: Tue Jan 27 23:01:18 MSK 2026
   - `yaml` import needs `# type: ignore[import-untyped]` for mypy — use at top of file, not inline in test methods
   - ARIA snapshot test data: use triple-quoted YAML strings matching real Playwright output format for realistic integration tests
   - Pydantic frozen models raise `ValidationError` (not `AttributeError`) on mutation attempts
+---
+
+## 2026-01-28 04:45 - US-013
+- **What was implemented**: End-to-end demo verification — rewrote demo.py to async SDK architecture, fixed critical SDK integration bugs
+- **Files changed**:
+  - `scripts/demo.py` — complete rewrite from subprocess-based launcher to async SDK architecture (same pattern as run.py): async_playwright, launch_persistent_context_async, create_browser_tools/agents, Runner.run with RunConfig
+  - `scripts/run.py` — added RunConfig(model_provider=OpenAIProvider) to bypass MultiProvider prefix stripping
+  - `src/browser_agent/core/llm.py` — setup_openrouter_for_sdk() now returns OpenAIProvider(openai_client=client, use_responses=False); updated DEFAULT_SDK_MODEL to `google/gemini-2.5-flash` (stable ID)
+  - `scripts/ralph/prd.json` — marked US-013 as passes: true
+- **E2E verification**: `uv run python scripts/run.py "go to example.com and tell me what the page title is" --headless` completes successfully. Agent output: "The title of example.com is 'Example Domain'". Planner→Navigator handoff works, multiple tools used in sequence.
+- **Learnings for future iterations:**
+  - SDK's `MultiProvider` splits model names on `/` and tries to match a provider by prefix. For OpenRouter model names like `google/gemini-...`, this fails with "Unknown prefix: google". Fix: use `OpenAIProvider` directly via `RunConfig(model_provider=OpenAIProvider(openai_client=client, use_responses=False))`
+  - OpenRouter requires `use_responses=False` on the provider — it only supports chat completions, not OpenAI's Responses API
+  - `set_default_openai_client()` alone is NOT sufficient — `MultiProvider` (the default) still does prefix parsing before delegating to the client
+  - OpenRouter model IDs have stable and preview variants — preview IDs (e.g., `-preview-05-20`) expire and get rotated. Use stable IDs (e.g., `google/gemini-2.5-flash`)
+  - The `[non-fatal] Tracing client error 401` messages are from the SDK's telemetry system trying to call OpenAI's API with the OpenRouter key — harmless and expected
 ---

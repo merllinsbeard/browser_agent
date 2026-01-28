@@ -10,7 +10,7 @@ from pathlib import Path
 # Add src to path for development
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from agents import Runner
+from agents import RunConfig, Runner
 from agents.exceptions import MaxTurnsExceeded
 from playwright.async_api import async_playwright
 
@@ -94,8 +94,8 @@ async def main() -> None:
     if args.auto_approve:
         console.print("[yellow][dim]Auto-approve mode: ENABLED[/dim][/yellow]")
 
-    # Configure SDK LLM client
-    setup_openrouter_for_sdk()
+    # Configure SDK LLM client (returns OpenAIProvider for RunConfig)
+    model_provider = setup_openrouter_for_sdk()
 
     # Launch browser (async)
     pw = await async_playwright().start()
@@ -124,7 +124,8 @@ async def main() -> None:
         # Run the ReAct loop
         console.print("\n[yellow]Starting agent...[/yellow]")
         try:
-            result = await Runner.run(planner, task, max_turns=30)
+            run_config = RunConfig(model_provider=model_provider)
+            result = await Runner.run(planner, task, max_turns=30, run_config=run_config)
             console.print("\n")
             console.print(Panel(
                 f"[bold green]Task Complete![/bold green]\n\n"

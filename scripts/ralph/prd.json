@@ -249,8 +249,8 @@
         "Typecheck passes: uv run mypy src/ scripts/"
       ],
       "priority": 13,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: Rewrote scripts/demo.py from subprocess-based launcher to async SDK architecture (same pattern as run.py). Fixed critical SDK integration bugs: (1) MultiProvider prefix parsing — bypassed by returning OpenAIProvider from setup_openrouter_for_sdk() and passing via RunConfig(model_provider=...), (2) Updated DEFAULT_SDK_MODEL from expired 'google/gemini-2.5-flash-preview-05-20' to 'google/gemini-2.5-flash'. E2e verified: agent completes 'go to example.com and tell me what the page title is' — outputs 'The title of example.com is \"Example Domain\"'. Planner→Navigator handoff works, multiple tools used in sequence. mypy clean (0 issues in 33 files), 77 tests pass."
     }
   ]
 }

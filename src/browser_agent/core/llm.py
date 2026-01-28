@@ -9,19 +9,25 @@ from typing import Any
 from openai import AsyncOpenAI, OpenAI, OpenAIError
 
 from agents import set_default_openai_client
+from agents.models.openai_provider import OpenAIProvider
 
 # Default model to use on OpenRouter
 DEFAULT_MODEL = "anthropic/claude-3.5-sonnet"
 
 # Default model for OpenAI Agents SDK usage
-DEFAULT_SDK_MODEL = "google/gemini-2.5-flash-preview-05-20"
+DEFAULT_SDK_MODEL = "google/gemini-2.5-flash"
 
 
-def setup_openrouter_for_sdk() -> None:
+def setup_openrouter_for_sdk() -> OpenAIProvider:
     """Configure the OpenAI Agents SDK to use OpenRouter as the LLM backend.
 
-    Sets the default AsyncOpenAI client for the SDK, pointed at OpenRouter's
-    OpenAI-compatible API. The OPENROUTER_API_KEY environment variable must be set.
+    Creates an AsyncOpenAI client pointed at OpenRouter's OpenAI-compatible API,
+    sets it as the SDK default, and returns an OpenAIProvider that bypasses
+    the SDK's MultiProvider prefix parsing (which would strip the provider
+    prefix from model names like 'google/gemini-...' that OpenRouter needs).
+
+    Returns:
+        An OpenAIProvider configured for OpenRouter with chat completions mode.
 
     Raises:
         ValueError: If OPENROUTER_API_KEY is not set.
@@ -38,6 +44,7 @@ def setup_openrouter_for_sdk() -> None:
         api_key=api_key,
     )
     set_default_openai_client(client)
+    return OpenAIProvider(openai_client=client, use_responses=False)
 
 
 def get_openrouter_client() -> OpenAI:
