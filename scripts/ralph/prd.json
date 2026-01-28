@@ -170,8 +170,8 @@
         "Typecheck passes: uv run mypy src/"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: Rewrote planner.py — deleted old PlannerAgent class, created create_planner_agent(navigator_agent) factory returning SDK Agent with name='Task Planner', handoffs=[navigator_agent], detailed planning system prompt, model=DEFAULT_SDK_MODEL. Removed SafetyAgent class from safety.py. Updated agents/__init__.py to export create_planner_agent and create_navigator_agent only. Import and mypy pass."
     },
     {
       "id": "US-010",

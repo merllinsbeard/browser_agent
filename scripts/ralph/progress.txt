@@ -89,3 +89,18 @@ Started: Tue Jan 27 23:01:18 MSK 2026
   - System prompt (instructions) is critical for ReAct behavior — must explicitly tell the agent to observe first, use element IDs, handle failures, and call browser_done() when complete
   - The Navigator agent doesn't need handoffs — it receives control from the Planner and uses tools to complete the task
 ---
+
+## 2026-01-28 04:00 - US-009
+- **What was implemented**: Planner Agent with SDK handoff to Navigator
+- **Files changed**:
+  - `src/browser_agent/agents/planner.py` — deleted old PlannerAgent class, created `create_planner_agent(navigator_agent)` factory returning SDK `Agent` with `handoffs=[navigator_agent]`
+  - `src/browser_agent/agents/safety.py` — removed SafetyAgent class (safety moves to US-010 at tool level)
+  - `src/browser_agent/agents/__init__.py` — removed PlannerAgent and SafetyAgent exports, now exports only `create_navigator_agent` and `create_planner_agent`
+- **Verification**: `from browser_agent.agents import create_navigator_agent, create_planner_agent` succeeds. mypy clean (0 issues in 30 files).
+- **Learnings for future iterations:**
+  - SDK `Agent` constructor accepts `handoffs: list[Agent | Handoff]` for agent-to-agent delegation
+  - The Planner agent has NO tools — it only plans and hands off. The Navigator has all the browser tools.
+  - `handoffs=[navigator_agent]` makes the SDK automatically offer the handoff as an action the LLM can take
+  - The Planner's system prompt must explicitly tell it to hand off after planning — otherwise the LLM may try to act without tools
+  - `type: ignore[type-arg]` needed on `Agent` return type since it's generic (`Agent[TContext]`) but we don't use context
+---

@@ -1,123 +1,64 @@
-"""Planner agent for breaking tasks into steps.
+"""Planner agent for breaking tasks into high-level steps.
 
-This module provides the Planner agent which creates execution plans
-for browser automation tasks.
+This module provides a factory function that creates a Planner agent
+using the OpenAI Agents SDK. The Planner receives a user task, creates
+a plan, and hands off execution to the Navigator agent.
 """
 
-from typing import Any
+from agents import Agent
 
-from browser_agent.core.llm import call_llm
+from browser_agent.core.llm import DEFAULT_SDK_MODEL
+
+PLANNER_INSTRUCTIONS = """\
+You are Task Planner — an agent that receives browser automation tasks and creates clear, \
+high-level execution plans before handing off to the Browser Navigator for execution.
+
+## Your Role
+1. Receive the user's browser automation task.
+2. Break it into 3–10 high-level steps.
+3. Hand off to Browser Navigator for execution.
+
+## Planning Rules
+- Steps must be GENERAL and describe WHAT to do, not HOW.
+- Never include specific element IDs (like "elem-0") — the Navigator will discover them.
+- Never include CSS selectors or XPath expressions.
+- Never assume specific page layouts — the Navigator observes the page in real time.
+- Start with navigation to the appropriate website if the task implies one.
+- End with a clear success criterion (what the user should see or get back).
+
+## Plan Format
+Present your plan as a numbered list, then hand off to Browser Navigator. Example:
+
+Plan for "Search for Python jobs on LinkedIn":
+1. Navigate to linkedin.com
+2. Find and use the search functionality
+3. Enter "Python" as the search query
+4. Filter results to show jobs only
+5. Review the first page of job listings
+6. Report back the top results found
+
+Handing off to Browser Navigator for execution.
+
+## Important
+- Keep plans concise — the Navigator is autonomous and adapts in real time.
+- If the task is ambiguous, include your best interpretation in the plan.
+- Always hand off to Browser Navigator after presenting the plan — do not attempt to execute \
+browser actions yourself (you have no browser tools).
+"""
 
 
-class PlannerAgent:
-    """Agent for creating execution plans from user tasks.
+def create_planner_agent(navigator_agent: Agent) -> Agent:  # type: ignore[type-arg]
+    """Create a Planner agent that hands off to the Navigator.
 
-    The Planner receives a user's natural language task and creates
-    a step-by-step execution plan. It maintains URL history for backtracking.
+    Args:
+        navigator_agent: The Navigator agent to hand off execution to.
+
+    Returns:
+        An SDK Agent configured for task planning with handoff to Navigator.
     """
-
-    def __init__(self, model: str | None = None) -> None:
-        """Initialize the Planner agent.
-
-        Args:
-            model: Model name to use for LLM calls. If None, uses default.
-        """
-        self._model = model
-        self._url_history: list[str] = []
-        self._plan: list[str] = []
-
-    def create_plan(self, task: str, current_url: str = "") -> list[str]:
-        """Create an execution plan for the given task.
-
-        Args:
-            task: The user's natural language task description.
-            current_url: The current page URL (for context).
-
-        Returns:
-            A list of step descriptions representing the execution plan.
-        """
-        # Build context message with current state
-        history_context = ""
-        if self._url_history:
-            history_context = f"\nRecent URLs visited: {self._url_history[-5:]}"
-        if current_url:
-            history_context += f"\nCurrent URL: {current_url}"
-
-        system_prompt = """You are a browser automation planner. Your job is to break down a user's task into clear, actionable steps.
-
-You have access to these browser actions:
-- CLICK {element_id} - Click an interactive element
-- TYPE {element_id} {text} - Type text into an input element
-- PRESS {key} - Press a keyboard key (Enter, Escape, etc.)
-- SCROLL {dx} {dy} - Scroll the page
-- NAVIGATE {url} - Navigate to a URL
-- WAIT {timeout_ms} - Wait for a specified time
-- EXTRACT {target} - Extract data from the page
-- DONE {summary} - Signal task completion
-
-Important rules:
-1. Start by navigating to the starting URL if not already there
-2. Each step should be a single, clear action
-3. Use element references like "elem-0", "elem-1" (from page observation)
-4. Be specific about what you're looking for
-5. End with DONE when the task is complete
-
-Return your plan as a numbered list of steps, one per line."""
-
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Task: {task}{history_context}"},
-        ]
-
-        response = call_llm(messages, model=self._model)
-
-        # Parse the response into a plan
-        plan = self._parse_plan(response)
-        self._plan = plan
-        return plan
-
-    def _parse_plan(self, response: str) -> list[str]:
-        """Parse the LLM response into a list of steps.
-
-        Args:
-            response: The LLM's response text.
-
-        Returns:
-            A list of step descriptions.
-        """
-        lines = response.strip().split("\n")
-        steps = []
-        for line in lines:
-            line = line.strip()
-            # Skip empty lines and non-step lines
-            if not line or not any(line.startswith(prefix) for prefix in ("1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9.", "10.", "-", "*")):
-                continue
-            # Remove numbering/bullets
-            for prefix in ("1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9.", "10.", "- ", "* "):
-                if line.startswith(prefix):
-                    line = line[len(prefix) :].strip()
-                    break
-            if line:
-                steps.append(line)
-        return steps
-
-    def add_url_to_history(self, url: str) -> None:
-        """Add a URL to the navigation history.
-
-        Args:
-            url: The URL to add.
-        """
-        if url and url not in self._url_history:
-            self._url_history.append(url)
-
-    def get_current_plan(self) -> list[str]:
-        """Get the current execution plan.
-
-        Returns:
-            The current list of steps in the plan.
-        """
-        return self._plan.copy()
-
-    def clear_plan(self) -> None:
-        """Clear the current plan."""
-        self._plan = []
+    return Agent(
+        name="Task Planner",
+        instructions=PLANNER_INSTRUCTIONS,
+        handoffs=[navigator_agent],
+        model=DEFAULT_SDK_MODEL,
+    )
