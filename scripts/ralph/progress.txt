@@ -11,6 +11,7 @@ Started: Tue Jan 27 23:01:18 MSK 2026
 - Registry `get_locator()` returns sync `Locator`, but works with async `Page` at runtime (same method names). Use `locator: Any` to avoid mypy errors when awaiting async methods.
 - `@function_tool` from `agents` SDK works inside factory closures — each decorated function captures page/registry via closure.
 - For async tools that call sync Playwright registry methods, use `cast(Any, page)` for the page arg and `locator: Any` for the returned locator.
+- Safety checks in `browser_click`/`browser_type`: get element FIRST via `registry.get_element()`, check `is_destructive_action(f'{role} {name}')`, confirm with user if destructive.
 
 ---
 
@@ -103,4 +104,17 @@ Started: Tue Jan 27 23:01:18 MSK 2026
   - `handoffs=[navigator_agent]` makes the SDK automatically offer the handoff as an action the LLM can take
   - The Planner's system prompt must explicitly tell it to hand off after planning — otherwise the LLM may try to act without tools
   - `type: ignore[type-arg]` needed on `Agent` return type since it's generic (`Agent[TContext]`) but we don't use context
+---
+
+## 2026-01-28 04:10 - US-010
+- **What was implemented**: Safety checks in browser tools — deterministic keyword-based destructive action detection and user confirmation
+- **Files changed**:
+  - `src/browser_agent/tools/safety.py` — new file with `is_destructive_action()` and `ask_user_confirmation()`
+  - `src/browser_agent/tools/browser_tools.py` — integrated safety checks into `browser_click` and `browser_type`
+- **Verification**: `is_destructive_action('delete account')` → True, `is_destructive_action('click search')` → False. mypy clean (0 issues in 31 files).
+- **Learnings for future iterations:**
+  - Safety checks are at the tool level (not agent/LLM level) — deterministic and unbypassable
+  - `is_destructive_action()` splits on whitespace and checks against a frozenset of keywords — simple but effective
+  - In `browser_click`/`browser_type`, get the element BEFORE acting (via `registry.get_element()`) to check safety — previously element was retrieved after the action
+  - `ask_user_confirmation()` uses `rich.prompt.Confirm` wrapped in `asyncio.to_thread()` for async compatibility (same pattern as `ask_user` tool)
 ---

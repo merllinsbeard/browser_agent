@@ -13,6 +13,7 @@ from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 
 from browser_agent.core.registry import ElementRegistry, StaleElementError
 from browser_agent.tools.observe import _extract_interactive_elements
+from browser_agent.tools.safety import ask_user_confirmation, is_destructive_action
 
 
 def create_browser_tools(page: Page, registry: ElementRegistry) -> list[Any]:
@@ -82,9 +83,15 @@ def create_browser_tools(page: Page, registry: ElementRegistry) -> list[Any]:
             element_id: The element reference ID from browser_observe (e.g., 'elem-0').
         """
         try:
+            element = registry.get_element(element_id)
+            # Safety check: confirm before destructive actions
+            action_desc = f"{element.role} {element.name}"
+            if is_destructive_action(action_desc):
+                confirmed = await ask_user_confirmation(action_desc)
+                if not confirmed:
+                    return "Action blocked by user"
             locator: Any = registry.get_locator(cast(Any, page), element_id)
             await locator.click(timeout=30000)
-            element = registry.get_element(element_id)
             return f'Clicked [{element.role}] "{element.name}" ({element_id})'
         except StaleElementError as e:
             return f"Error: {e}. Call browser_observe() to get fresh element references."
@@ -104,9 +111,15 @@ def create_browser_tools(page: Page, registry: ElementRegistry) -> list[Any]:
             text: The text to type into the element.
         """
         try:
+            element = registry.get_element(element_id)
+            # Safety check: confirm before destructive actions
+            action_desc = f"{element.role} {element.name}"
+            if is_destructive_action(action_desc):
+                confirmed = await ask_user_confirmation(action_desc)
+                if not confirmed:
+                    return "Action blocked by user"
             locator: Any = registry.get_locator(cast(Any, page), element_id)
             await locator.fill(text, timeout=30000)
-            element = registry.get_element(element_id)
             return f'Typed "{text}" into [{element.role}] "{element.name}" ({element_id})'
         except StaleElementError as e:
             return f"Error: {e}. Call browser_observe() to get fresh element references."
