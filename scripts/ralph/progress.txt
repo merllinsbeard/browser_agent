@@ -45,3 +45,15 @@ Started: Tue Jan 27 23:01:18 MSK 2026
   - Import async types separately: `from playwright.async_api import BrowserContext as AsyncBrowserContext`
   - The async `launch_persistent_context()` returns a context with `ctx.pages` already populated (same as sync)
 ---
+
+## 2026-01-28 03:40 - US-006
+- **What was implemented**: OpenRouter async client for OpenAI Agents SDK
+- **Files changed**:
+  - `src/browser_agent/core/llm.py` — added `setup_openrouter_for_sdk()` function using `AsyncOpenAI` + `set_default_openai_client()`, added `DEFAULT_SDK_MODEL` constant
+  - `src/browser_agent/core/__init__.py` — exported `setup_openrouter_for_sdk` and `DEFAULT_SDK_MODEL`
+- **Verification**: `setup_openrouter_for_sdk()` configures SDK client without error. Import and mypy pass.
+- **Learnings for future iterations:**
+  - OpenAI Agents SDK uses `set_default_openai_client()` from `agents` package to configure the LLM backend — accepts an `AsyncOpenAI` instance
+  - OpenRouter works with `AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=...)` — fully OpenAI-compatible async client
+  - The agents SDK v0.7.0 is installed and provides `set_default_openai_client`
+---

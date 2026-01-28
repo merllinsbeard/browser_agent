@@ -105,8 +105,8 @@
         "Typecheck passes: uv run mypy src/"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed: Added setup_openrouter_for_sdk() using AsyncOpenAI + set_default_openai_client() from agents SDK. Added DEFAULT_SDK_MODEL constant. Exported both from core/__init__.py. Import and mypy pass."
     },
     {
       "id": "US-007",
