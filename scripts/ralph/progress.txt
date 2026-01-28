@@ -8,6 +8,9 @@ Started: Tue Jan 27 23:01:18 MSK 2026
 - Cross-module import cleanup: when deleting a module, check __init__.py files AND all importing modules (grep for `from browser_agent.X import`).
 - ElementRegistry.register_elements() takes only elements (no selectors). Groups by (role, name) for nth index.
 - Playwright get_by_role() expects Literal type for role — use `cast(Any, role)` with mypy.
+- Registry `get_locator()` returns sync `Locator`, but works with async `Page` at runtime (same method names). Use `locator: Any` to avoid mypy errors when awaiting async methods.
+- `@function_tool` from `agents` SDK works inside factory closures — each decorated function captures page/registry via closure.
+- For async tools that call sync Playwright registry methods, use `cast(Any, page)` for the page arg and `locator: Any` for the returned locator.
 
 ---
 
@@ -56,4 +59,20 @@ Started: Tue Jan 27 23:01:18 MSK 2026
   - OpenAI Agents SDK uses `set_default_openai_client()` from `agents` package to configure the LLM backend — accepts an `AsyncOpenAI` instance
   - OpenRouter works with `AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=...)` — fully OpenAI-compatible async client
   - The agents SDK v0.7.0 is installed and provides `set_default_openai_client`
+---
+
+## 2026-01-28 03:50 - US-007
+- **What was implemented**: Browser tools as `@function_tool` for OpenAI Agents SDK
+- **Files changed**:
+  - `src/browser_agent/tools/browser_tools.py` — new file with `create_browser_tools(page, registry)` factory returning 10 `@function_tool` async functions
+  - `src/browser_agent/tools/__init__.py` — added `create_browser_tools` export
+- **Tools implemented**: `browser_observe`, `browser_click`, `browser_type`, `browser_press`, `browser_scroll`, `browser_navigate`, `browser_wait`, `browser_extract`, `browser_done`, `ask_user`
+- **Verification**: Import from both `browser_agent.tools.browser_tools` and `browser_agent.tools` succeeds. mypy clean.
+- **Learnings for future iterations:**
+  - The `@function_tool` decorator works inside factory closures — each tool captures `page` and `registry` via closure scope
+  - `registry.get_locator()` returns sync `Locator` type, but at runtime returns async `Locator` when given async `Page`. Use `locator: Any` annotation to avoid mypy `func-returns-value` error on `await locator.click()`
+  - `cast(Any, page)` bridges the sync/async type gap when passing async `Page` to `registry.get_locator()`
+  - `asyncio.to_thread()` works for wrapping blocking `rich.Prompt.ask()` in async context
+  - `browser_navigate()` must call `registry.increment_version()` after successful navigation to invalidate stale element refs
+  - `_extract_interactive_elements()` from observe.py is pure Python (no Playwright calls) — safe to reuse in async tools
 ---
